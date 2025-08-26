@@ -183,22 +183,31 @@ class ResearchAgent {
       // Collect sources from each query
       for (const searchQuery of searchQueries.slice(0, 2)) {
         try {
-          const searchResults = await this.searchTool.invoke(searchQuery);
+          let searchResults = await this.searchTool.invoke(searchQuery);
+          logger.info(`Raw search results type: ${typeof searchResults}`, agentRunId);
+          
+          // Parse JSON string if needed
+          if (typeof searchResults === 'string') {
+            try {
+              searchResults = JSON.parse(searchResults);
+              logger.info(`Parsed JSON string successfully`, agentRunId);
+            } catch (error) {
+              logger.warn(`Failed to parse search results JSON: ${error}`, agentRunId);
+              continue;
+            }
+          }
+          
           logger.info(`Found ${searchResults.length} results for: ${searchQuery}`, agentRunId);
           
           // Debug: Log first result structure
           if (searchResults.length > 0) {
             logger.info(`First result structure: ${JSON.stringify(searchResults[0], null, 2)}`, agentRunId);
-          }
-          
-          // Handle case where searchResults might be a string or malformed
-          if (typeof searchResults === 'string') {
-            logger.warn(`Search results returned as string, skipping: ${searchResults}`, agentRunId);
-            continue;
+            logger.info(`Total results: ${searchResults.length}`, agentRunId);
+            logger.info(`Result type: ${typeof searchResults[0]}`, agentRunId);
           }
           
           if (!Array.isArray(searchResults)) {
-            logger.warn(`Search results not an array, skipping`, agentRunId);
+            logger.warn(`Search results not an array after parsing, skipping`, agentRunId);
             continue;
           }
           
@@ -212,13 +221,16 @@ class ResearchAgent {
             continue;
           }
           
-                      for (const result of validResults.slice(0, 3)) {
-            try {
-              // Check if result has valid URL
-              if (!result.url || result.url === 'undefined') {
-                logger.warn(`Skipped result - invalid URL: ${result.url}`, agentRunId);
-                continue;
-              }
+                                  for (const result of validResults.slice(0, 3)) {
+              try {
+                // Debug: Log the result being processed
+                logger.info(`Processing result: ${JSON.stringify(result, null, 2)}`, agentRunId);
+                
+                // Check if result has valid URL
+                if (!result.url || result.url === 'undefined') {
+                  logger.warn(`Skipped result - invalid URL: ${result.url}`, agentRunId);
+                  continue;
+                }
 
               const content = await this.loadWebContent(result.url);
               
@@ -481,21 +493,25 @@ class ResearchAgent {
 
   private async loadWebContent(url: string): Promise<string> {
     try {
+      logger.info(`Loading web content from: ${url}`);
+      
       const loader = new CheerioWebBaseLoader(url, {
-        timeout: 10000, // 10 second timeout
-        maxRetries: 2
+        timeout: 15000, // 15 second timeout
+        maxRetries: 1
       });
       const docs = await loader.load();
       const content = docs.length > 0 && docs[0] ? docs[0].pageContent : '';
       
-      if (content && content.length > 50) {
+      if (content && content.length > 100) {
+        logger.info(`Successfully loaded ${content.length} characters from ${url}`);
         return content;
       }
       
       // If web scraping fails, return a basic description
+      logger.warn(`Insufficient content from ${url}: ${content.length} characters`);
       return `Content from ${url} - Unable to load full content due to access restrictions or timeout.`;
     } catch (error) {
-      console.log(`Web scraping failed for ${url}:`, error);
+      logger.warn(`Web scraping failed for ${url}: ${error}`);
       // Return a basic description instead of empty string
       return `Content from ${url} - Access restricted or unavailable.`;
     }
