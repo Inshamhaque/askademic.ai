@@ -162,3 +162,31 @@ export const getResearchStatus = async (sessionId: string) => {
     throw new Error(`Failed to get research status: ${error.message}`);
   }
 };
+
+export const getAgentLogs = async (sessionId: string) => {
+  try {
+    const agentRun = await prisma.agentRun.findFirst({
+      where: { sessionId },
+      orderBy: { createdAt: "desc" }
+    });
+
+    if (!agentRun) {
+      return { sessionId, logs: [], status: "not_found" };
+    }
+
+    const output = agentRun.output as any;
+    
+    return {
+      sessionId,
+      agentRunId: agentRun.id,
+      status: agentRun.status,
+      logs: output?.logs || [],
+      metadata: output?.metadata || {},
+      error: output?.error || null,
+      createdAt: agentRun.createdAt,
+      completedAt: agentRun.status === "completed" ? agentRun.createdAt : null
+    };
+  } catch (error: any) {
+    throw new Error(`Failed to get agent logs: ${error.message}`);
+  }
+};

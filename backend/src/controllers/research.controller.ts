@@ -13,7 +13,8 @@ export const initiateResearch = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Depth must be 'quick', 'deep', or 'comprehensive'" });
     }
 
-    const result = await researchService.initiateResearch(query, depth, sources);
+    // Sources are optional - the agent will find them automatically
+    const result = await researchService.initiateResearch(query, depth, sources || []);
     res.json(result);
   } catch (error: any) {
     console.error("Error initiating research:", error);
@@ -105,6 +106,22 @@ export const getResearchStatus = async (req: Request, res: Response) => {
     res.json(result);
   } catch (error: any) {
     console.error("Error getting research status:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getAgentLogs = async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params;
+    
+    if (!sessionId) {
+      return res.status(400).json({ error: "Session ID is required" });
+    }
+
+    const result = await researchService.getAgentLogs(sessionId);
+    res.json(result);
+  } catch (error: any) {
+    console.error("Error getting agent logs:", error);
     res.status(500).json({ error: error.message });
   }
 };

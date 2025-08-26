@@ -6,6 +6,7 @@ const router = Router();
 // Research workflow endpoints
 router.post("/initiate", researchController.initiateResearch);
 router.get("/status/:sessionId", researchController.getResearchStatus);
+router.get("/logs/:sessionId", researchController.getAgentLogs);
 
 // Research data endpoints
 router.get("/sources/:sessionId", researchController.getSources);

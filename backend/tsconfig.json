@@ -28,6 +28,6 @@
     // Recommended
     "skipLibCheck": true
   },
-  "include": ["src"],
+  "include": ["src", "src/generated"],
   "exclude": ["node_modules"]
 }
