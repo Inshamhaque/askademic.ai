@@ -1,18 +1,18 @@
-import express from 'express';
+import { Router } from "express";
+import * as researchController from "../controllers/research.controller.js";
 
-const researchRouter = express.Router();
+const router = Router();
 
-researchRouter.post('/initialize', (req, res) => {
-    const { query } = req.body; 
+// Research workflow endpoints
+router.post("/initiate", researchController.initiateResearch);
+router.get("/status/:sessionId", researchController.getResearchStatus);
 
-    // TODO: implement your logic here
-    console.log("Received query:", query);
+// Research data endpoints
+router.get("/sources/:sessionId", researchController.getSources);
+router.post("/analyze", researchController.analyzeResearch);
+router.get("/report/:sessionId", researchController.getReport);
 
-    res.json({
-        success: true,
-        message: "Research initialized",
-        data: { query }
-    });
-});
+// Feedback and refinement
+router.post("/feedback", researchController.addFeedback);
 
-export default researchRouter;
+export default router;
