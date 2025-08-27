@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Logo from '../components/Logo';
+import ProfileDropdown from '../components/ProfileDropdown';
 
 interface SessionItem {
   id: string;
@@ -13,6 +14,12 @@ interface SessionItem {
   latestStatus: string;
 }
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export default function ChatStarterPage() {
   const [query, setQuery] = useState('');
   const [depth, setDepth] = useState<'quick' | 'deep' | 'comprehensive'>('deep');
@@ -20,14 +27,26 @@ export default function ChatStarterPage() {
   const [error, setError] = useState('');
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     const token = localStorage.getItem('sessionToken');
+    const userData = localStorage.getItem('user');
+    
     if (!token) {
       router.push('/signin');
       return;
     }
+
+    if (userData) {
+      try {
+        setUser(JSON.parse(userData));
+      } catch (err) {
+        console.error('Error parsing user data:', err);
+      }
+    }
+
     loadSessions();
   }, [router]);
 
@@ -98,21 +117,6 @@ export default function ChatStarterPage() {
     }
   };
 
-  const handleSignOut = async () => {
-    try {
-      await fetch('http://localhost:8080/user/signout', { 
-        method: 'POST', 
-        headers: getAuthHeaders() 
-      });
-    } catch (err) {
-      console.error('Signout error:', err);
-    } finally {
-      localStorage.removeItem('sessionToken');
-      localStorage.removeItem('user');
-      router.push('/');
-    }
-  };
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -138,12 +142,7 @@ export default function ChatStarterPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <Logo />
-            <button
-              onClick={handleSignOut}
-              className="text-gray-300 hover:text-gray-100 px-3 py-2 rounded-md text-sm font-medium"
-            >
-              Sign Out
-            </button>
+            {user && <ProfileDropdown user={user} />}
           </div>
         </div>
       </header>

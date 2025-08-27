@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import Logo from "../../components/Logo";
+import ProfileDropdown from "../../components/ProfileDropdown";
 import ReactMarkdown from "react-markdown";
 import PdfDownload from "../../components/PdfDownload";
 
@@ -34,6 +35,12 @@ interface SessionItem {
   latestStatus: string;
 }
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export default function ChatSessionPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -49,6 +56,7 @@ export default function ChatSessionPage() {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [currentSession, setCurrentSession] = useState<SessionItem | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   const getAuthHeaders = () => {
@@ -119,10 +127,21 @@ export default function ChatSessionPage() {
 
   useEffect(() => {
     const token = localStorage.getItem("sessionToken");
+    const userData = localStorage.getItem("user");
+    
     if (!token) {
       router.push("/signin");
       return;
     }
+
+    if (userData) {
+      try {
+        setUser(JSON.parse(userData));
+      } catch (err) {
+        console.error('Error parsing user data:', err);
+      }
+    }
+
     loadSessions();
   }, [router]);
 
@@ -154,15 +173,6 @@ export default function ChatSessionPage() {
     };
   }, [sessionId, router]);
 
-  const handleSignOut = async () => {
-    try {
-      await fetch("http://localhost:8080/user/signout", { method: "POST", headers: getAuthHeaders() });
-    } catch {}
-    localStorage.removeItem("sessionToken");
-    localStorage.removeItem("user");
-    router.push("/");
-  };
-
   const isActive = (id: string) => id === sessionId;
 
   return (
@@ -171,7 +181,7 @@ export default function ChatSessionPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <Logo />
-            <button onClick={handleSignOut} className="text-gray-300 hover:text-gray-100 px-3 py-2 rounded-md text-sm font-medium">Sign Out</button>
+            {user && <ProfileDropdown user={user} />}
           </div>
         </div>
       </header>
@@ -207,108 +217,134 @@ export default function ChatSessionPage() {
           </div>
         </aside>
 
-        {/* Main content */}
-        <section className="lg:col-span-3">
-          {error && (
-            <div className="bg-red-900/20 border border-red-800 text-red-400 px-4 py-2 rounded mb-4 text-sm">{error}</div>
-          )}
-
-          <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700">
-            <div className="border-b border-gray-700">
-              <nav className="flex space-x-8 px-6">
-                <button onClick={() => setActiveTab("results")} className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === "results" ? "border-indigo-500 text-indigo-400" : "border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600"}`}>Results</button>
-                <button onClick={() => setActiveTab("sources")} className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === "sources" ? "border-indigo-500 text-indigo-400" : "border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600"}`}>Sources</button>
-                <button onClick={() => setActiveTab("logs")} className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === "logs" ? "border-indigo-500 text-indigo-400" : "border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600"}`}>Logs</button>
-              </nav>
+        {/* Main Content */}
+        <div className="lg:col-span-3">
+          {loading ? (
+            <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-8 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto"></div>
+              <p className="mt-4 text-gray-400">Loading research session...</p>
             </div>
+          ) : error ? (
+            <div className="bg-red-900/20 border border-red-800 text-red-400 px-4 py-3 rounded-lg">
+              {error}
+            </div>
+          ) : (
+            <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700">
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="text-xl font-semibold text-white">{currentSession?.query}</h1>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`inline-block w-2 h-2 rounded-full ${status === 'completed' ? 'bg-green-500' : status === 'failed' ? 'bg-red-500' : 'bg-yellow-500'}`}></span>
+                      <span className="text-sm text-gray-400 capitalize">{status}</span>
+                      <span className="text-sm text-gray-500">•</span>
+                      <span className="text-sm text-gray-400 capitalize">{currentSession?.depth}</span>
+                    </div>
+                  </div>
+                  {currentSession && result && (
+                    <PdfDownload
+                      report={result.report || ""}
+                      query={currentSession.query}
+                      depth={currentSession.depth}
+                      status={status}
+                      sourcesCount={sources.length}
+                      sources={sources}
+                      onDownloadStart={() => setPdfLoading(true)}
+                      onDownloadComplete={() => setPdfLoading(false)}
+                    />
+                  )}
+                </div>
+              </div>
 
-            <div className="p-6">
-              {loading && <p className="text-gray-400">Loading…</p>}
+              {/* Tabs */}
+              <div className="border-b border-gray-700">
+                <nav className="flex space-x-8 px-6">
+                  {[
+                    { id: 'results', label: 'Results' },
+                    { id: 'sources', label: 'Sources' },
+                    { id: 'logs', label: 'Logs' }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id as any)}
+                      className={`py-3 px-1 border-b-2 font-medium text-sm ${
+                        activeTab === tab.id
+                          ? 'border-indigo-500 text-indigo-400'
+                          : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </nav>
+              </div>
 
-              {!loading && activeTab === "results" && result && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-gray-400">Status: {status}</div>
-                    {currentSession && (
-                      <PdfDownload
-                        report={result.report || ""}
-                        query={currentSession.query}
-                        depth={currentSession.depth}
-                        status={status}
-                        sourcesCount={sources.length}
-                        sources={sources}
-                        onDownloadStart={() => setPdfLoading(true)}
-                        onDownloadComplete={() => setPdfLoading(false)}
-                      />
+              {/* Tab Content */}
+              <div className="p-6">
+                {activeTab === 'results' && (
+                  <div>
+                    {result?.report ? (
+                      <div className="prose prose-invert max-w-none">
+                        <ReactMarkdown
+                          components={{
+                            h1: ({ children }) => <h1 className="text-2xl font-bold text-white mb-4">{children}</h1>,
+                            h2: ({ children }) => <h2 className="text-xl font-semibold text-white mb-3 mt-6">{children}</h2>,
+                            h3: ({ children }) => <h3 className="text-lg font-medium text-white mb-2 mt-4">{children}</h3>,
+                            p: ({ children }) => <p className="text-gray-300 mb-4 leading-relaxed">{children}</p>,
+                            ul: ({ children }) => <ul className="list-disc list-inside text-gray-300 mb-4 space-y-1">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal list-inside text-gray-300 mb-4 space-y-1">{children}</ol>,
+                            li: ({ children }) => <li className="text-gray-300">{children}</li>,
+                            strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                            em: ({ children }) => <em className="italic text-gray-300">{children}</em>,
+                            code: ({ children }) => <code className="bg-gray-700 px-2 py-1 rounded text-sm font-mono text-gray-200">{children}</code>,
+                            pre: ({ children }) => <pre className="bg-gray-700 p-4 rounded-lg overflow-x-auto text-sm text-gray-200 mb-4">{children}</pre>,
+                            blockquote: ({ children }) => <blockquote className="border-l-4 border-indigo-500 pl-4 italic text-gray-400 mb-4">{children}</blockquote>,
+                            a: ({ children, href }) => <a href={href} className="text-indigo-400 hover:text-indigo-300 underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                            table: ({ children }) => <div className="overflow-x-auto mb-4"><table className="min-w-full border border-gray-600">{children}</table></div>,
+                            th: ({ children }) => <th className="border border-gray-600 px-4 py-2 text-left font-semibold text-white bg-gray-700">{children}</th>,
+                            td: ({ children }) => <td className="border border-gray-600 px-4 py-2 text-gray-300">{children}</td>,
+                          }}
+                        >
+                          {result.report}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <div className="text-center py-12">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto mb-4"></div>
+                        <p className="text-gray-400">Generating research report...</p>
+                      </div>
                     )}
                   </div>
-                  
-                  {pdfLoading && (
-                    <div className="text-sm text-indigo-400 flex items-center">
-                      <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Generating PDF...
-                    </div>
-                  )}
-                  
-                  <div className="bg-gray-700 rounded-lg p-4">
-                    <h3 className="font-medium text-white mb-2">Research Report</h3>
-                    <div className="max-h-96 overflow-y-auto prose prose-sm prose-invert max-w-none">
-                      <ReactMarkdown
-                        components={{
-                          h1: ({ children }) => <h1 className="text-xl font-bold text-white mb-4">{children}</h1>,
-                          h2: ({ children }) => <h2 className="text-lg font-semibold text-white mb-3">{children}</h2>,
-                          h3: ({ children }) => <h3 className="text-base font-medium text-white mb-2">{children}</h3>,
-                          p: ({ children }) => <p className="text-gray-300 mb-3 leading-relaxed">{children}</p>,
-                          ul: ({ children }) => <ul className="list-disc list-inside text-gray-300 mb-3 space-y-1">{children}</ul>,
-                          ol: ({ children }) => <ol className="list-decimal list-inside text-gray-300 mb-3 space-y-1">{children}</ol>,
-                          li: ({ children }) => <li className="text-gray-300">{children}</li>,
-                          strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
-                          em: ({ children }) => <em className="italic text-gray-200">{children}</em>,
-                          code: ({ children }) => <code className="bg-gray-800 text-indigo-300 px-1 py-0.5 rounded text-sm">{children}</code>,
-                          pre: ({ children }) => <pre className="bg-gray-800 text-gray-300 p-3 rounded mb-3 overflow-x-auto">{children}</pre>,
-                          blockquote: ({ children }) => <blockquote className="border-l-4 border-indigo-500 pl-4 text-gray-300 italic mb-3">{children}</blockquote>,
-                          a: ({ children, href }) => <a href={href} className="text-indigo-400 hover:text-indigo-300 underline" target="_blank" rel="noopener noreferrer">{children}</a>,
-                          table: ({ children }) => <div className="overflow-x-auto mb-3"><table className="min-w-full border border-gray-600">{children}</table></div>,
-                          th: ({ children }) => <th className="border border-gray-600 px-3 py-2 text-left text-white font-medium bg-gray-800">{children}</th>,
-                          td: ({ children }) => <td className="border border-gray-600 px-3 py-2 text-gray-300">{children}</td>,
-                        }}
-                      >
-                        {result.report || ""}
-                      </ReactMarkdown>
-                    </div>
-                  </div>
-                </div>
-              )}
+                )}
 
-              {!loading && activeTab === "sources" && (
-                <div className="space-y-4">
-                  <h3 className="font-medium text-white">Sources ({sources.length})</h3>
-                  {sources.map((s, i) => (
-                    <div key={i} className="border border-gray-700 rounded-lg p-3">
-                      <h4 className="font-medium text-sm text-white mb-1">{s.title}</h4>
-                      <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-400 hover:text-indigo-300 block mb-2">{s.url}</a>
-                      <p className="text-xs text-gray-400 line-clamp-3">{s.content}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {!loading && activeTab === "logs" && (
-                <div className="space-y-2">
-                  <h3 className="font-medium text-white">Process Logs</h3>
-                  <div className="max-h-96 overflow-y-auto space-y-2">
-                    {logs.map((log, i) => (
-                      <div key={i} className="text-xs text-gray-400 bg-gray-700 p-2 rounded">{log}</div>
+                {activeTab === 'sources' && (
+                  <div className="space-y-4">
+                    {sources.map((source, index) => (
+                      <div key={index} className="border border-gray-700 rounded-lg p-4">
+                        <h3 className="font-medium text-white mb-2">{source.title}</h3>
+                        <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 text-sm mb-2 block">
+                          {source.url}
+                        </a>
+                        <p className="text-gray-400 text-sm">{source.content}</p>
+                      </div>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+
+                {activeTab === 'logs' && (
+                  <div className="space-y-2">
+                    {logs.map((log, index) => (
+                      <div key={index} className="text-sm text-gray-400 font-mono bg-gray-700 p-2 rounded">
+                        {log}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </section>
+          )}
+        </div>
       </main>
     </div>
   );

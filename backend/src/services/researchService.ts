@@ -3,23 +3,32 @@ import researchAgent from "../agents/researchAgent.js";
 import crypto from "crypto";
 
 export const listUserSessions = async (userId: string) => {
-  const sessions = await prisma.session.findMany({
-    where: { userId },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      agentRuns: {
-        orderBy: { createdAt: 'desc' },
-        take: 1
-      }
-    }
-  });
-  return sessions.map(s => ({
-    id: s.id,
-    createdAt: s.createdAt,
-    query: s.query || 'Untitled Research',
-    depth: s.depth || 'deep',
-    latestStatus: s.status || (s.agentRuns[0]?.status ?? 'unknown')
-  }));
+  try {
+    const sessions = await prisma.session.findMany({
+      where: {
+        userId: userId,
+        query: { not: null } // Only include sessions with a query (research sessions)
+      },
+      include: {
+        agentRuns: {
+          orderBy: { createdAt: 'desc' },
+          take: 1
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return sessions.map(s => ({
+      id: s.id,
+      createdAt: s.createdAt,
+      query: s.query || 'Untitled Research',
+      depth: s.depth || 'deep',
+      latestStatus: s.agentRuns[0]?.status || s.status || 'unknown'
+    }));
+  } catch (error) {
+    console.error('Error listing user sessions:', error);
+    throw new Error('Failed to list sessions');
+  }
 };
 
 export const initiateResearch = async (query: string, depth: string, userId: string) => {
