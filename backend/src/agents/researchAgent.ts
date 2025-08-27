@@ -180,8 +180,28 @@ class ResearchAgent {
       const searchQueries = await this.generateSearchQueries(query);
       logger.info(`Generated ${searchQueries.length} search variations`, agentRunId);
 
+      // Get depth from session to determine source count
+      const session = await prisma.session.findFirst({
+        where: { 
+          agentRuns: { 
+            some: { id: agentRunId } 
+          } 
+        }
+      });
+
+      const depth = (session as any)?.depth || 'deep';
+      
+      // Determine source count based on depth
+      const sourceConfig = {
+        quick: { maxQueries: 1, maxSourcesPerQuery: 2, totalSources: 3 },
+        deep: { maxQueries: 2, maxSourcesPerQuery: 3, totalSources: 5 },
+        comprehensive: { maxQueries: 3, maxSourcesPerQuery: 4, totalSources: 8 }
+      };
+
+      const config = sourceConfig[depth as keyof typeof sourceConfig] || sourceConfig.deep;
+
       // Collect sources from each query
-      for (const searchQuery of searchQueries.slice(0, 2)) {
+      for (const searchQuery of searchQueries.slice(0, config.maxQueries)) {
         try {
           let searchResults = await this.searchTool.invoke(searchQuery);
           logger.info(`Raw search results type: ${typeof searchResults}`, agentRunId);
@@ -221,16 +241,16 @@ class ResearchAgent {
             continue;
           }
           
-                                  for (const result of validResults.slice(0, 3)) {
-              try {
-                // Debug: Log the result being processed
-                logger.info(`Processing result: ${JSON.stringify(result, null, 2)}`, agentRunId);
-                
-                // Check if result has valid URL
-                if (!result.url || result.url === 'undefined') {
-                  logger.warn(`Skipped result - invalid URL: ${result.url}`, agentRunId);
-                  continue;
-                }
+          for (const result of validResults.slice(0, config.maxSourcesPerQuery)) {
+            try {
+              // Debug: Log the result being processed
+              logger.info(`Processing result: ${JSON.stringify(result, null, 2)}`, agentRunId);
+              
+              // Check if result has valid URL
+              if (!result.url || result.url === 'undefined') {
+                logger.warn(`Skipped result - invalid URL: ${result.url}`, agentRunId);
+                continue;
+              }
 
               const content = await this.loadWebContent(result.url);
               
@@ -239,7 +259,7 @@ class ResearchAgent {
                 sources.push({
                   title: result.title || 'Web Source',
                   url: result.url,
-                  content: content.slice(0, 2000),
+                  content: content.slice(0, depth === 'comprehensive' ? 3000 : 2000), // More content for comprehensive
                   source_type: 'tavily',
                   relevance_score: 0.7
                 });
@@ -262,9 +282,9 @@ class ResearchAgent {
       const scoredSources = await this.scoreRelevance(sources, query, agentRunId);
       const topSources = scoredSources
         .sort((a, b) => b.relevance_score - a.relevance_score)
-        .slice(0, 5);
+        .slice(0, config.totalSources);
 
-      logger.info(`Collected ${topSources.length} relevant sources`, agentRunId);
+      logger.info(`Collected ${topSources.length} relevant sources for ${depth} research`, agentRunId);
       
       // If no sources collected, create a fallback source
       if (topSources.length === 0) {
@@ -340,20 +360,63 @@ class ResearchAgent {
       const recsArr = Array.isArray(analysis?.recommendations) ? analysis.recommendations : [];
       const confidenceNum = typeof analysis?.confidence_score === 'number' ? analysis.confidence_score : 0.7;
 
+      // Get depth from the session to determine report length
+      const session = await prisma.session.findFirst({
+        where: { 
+          agentRuns: { 
+            some: { id: agentRunId } 
+          } 
+        }
+      });
+
+      // Get depth from the input or use default
+      const depth = (session as any)?.depth || 'deep';
+      
+      // Define report length based on depth
+      const lengthConfig = {
+        quick: {
+          wordCount: '300-500',
+          sections: ['Executive Summary', 'Key Findings', 'Recommendations'],
+          description: 'concise executive summary style'
+        },
+        deep: {
+          wordCount: '800-1200',
+          sections: ['Executive Summary', 'Background', 'Key Findings', 'Analysis', 'Recommendations', 'Conclusion'],
+          description: 'comprehensive analysis with detailed sections'
+        },
+        comprehensive: {
+          wordCount: '1500-2000',
+          sections: ['Executive Summary', 'Background', 'Methodology', 'Key Findings', 'Detailed Analysis', 'Implications', 'Recommendations', 'Conclusion', 'Future Research'],
+          description: 'academic paper style with extensive analysis and multiple sections'
+        }
+      };
+
+      const config = lengthConfig[depth as keyof typeof lengthConfig] || lengthConfig.deep;
+
       const reportPrompt = PromptTemplate.fromTemplate(`
-        Create a ${format} research report for the query: "{query}"
+        Create a ${config.description} research report for the query: "{query}"
 
         Analysis Summary: {summary}
         Key Findings: {findings}
         Recommendations: {recommendations}
         Confidence Level: {confidence}
 
-        Generate a well-structured ${format} report:
-        ${format === 'executive' ? '(300-500 words, executive summary style)' : ''}
-        ${format === 'detailed' ? '(500-1000 words, comprehensive analysis)' : ''}
-        ${format === 'academic' ? '(800-1200 words, academic paper style with sections)' : ''}
+        Requirements:
+        - Target length: ${config.wordCount} words
+        - Include these sections: ${config.sections.join(', ')}
+        - Use proper markdown formatting with headers (##), bullet points, and emphasis
+        - Make it suitable for ${depth} level research
+        - Include specific details and examples where appropriate
+        - Ensure professional academic tone
 
-        Report:
+        ${depth === 'comprehensive' ? '- Include methodology section explaining the research approach' : ''}
+        ${depth === 'comprehensive' ? '- Add implications section discussing broader impact' : ''}
+        ${depth === 'comprehensive' ? '- Include future research directions' : ''}
+        ${depth === 'deep' ? '- Provide detailed analysis of each finding' : ''}
+        ${depth === 'deep' ? '- Include background context' : ''}
+        ${depth === 'quick' ? '- Focus on executive summary and actionable insights' : ''}
+
+        Generate the report:
       `);
 
       const chain = new LLMChain({ llm: this.llm, prompt: reportPrompt });
@@ -366,7 +429,7 @@ class ResearchAgent {
       });
 
       const report = result.text.trim();
-      logger.info(`Generated ${format} report (${report.length} chars)`, agentRunId);
+      logger.info(`Generated ${depth} report (${report.length} chars, target: ${config.wordCount} words)`, agentRunId);
       return report;
 
     } catch (error: any) {
@@ -565,7 +628,7 @@ class ResearchAgent {
         
         JSON Response:
         {{
-          "summary": "Brief 2-sentence summary",
+          "summary": "Brief 2-3 sentence summary focusing on key points",
           "key_findings": ["finding1", "finding2", "finding3"],
           "confidence_score": 0.8,
           "recommendations": ["rec1", "rec2"]
@@ -577,11 +640,11 @@ class ResearchAgent {
         
         JSON Response:
         {{
-          "summary": "Comprehensive 3-4 sentence summary",
-          "key_findings": ["detailed finding1", "finding2", "finding3", "finding4"],
+          "summary": "Comprehensive 4-5 sentence summary with context and implications",
+          "key_findings": ["detailed finding1 with explanation", "finding2 with context", "finding3 with impact", "finding4 with evidence", "finding5 with implications"],
           "confidence_score": 0.8,
-          "recommendations": ["detailed rec1", "rec2", "rec3"],
-          "gaps_identified": ["gap1", "gap2"]
+          "recommendations": ["detailed rec1 with rationale", "rec2 with implementation steps", "rec3 with expected outcomes"],
+          "gaps_identified": ["gap1 with description", "gap2 with potential impact"]
         }}
       `,
       comprehensive: `
@@ -590,11 +653,11 @@ class ResearchAgent {
         
         JSON Response:
         {{
-          "summary": "Thorough 4-5 sentence summary with context",
-          "key_findings": ["detailed finding1", "finding2", "finding3", "finding4", "finding5"],
+          "summary": "Thorough 5-6 sentence summary with full context, methodology overview, and broader implications",
+          "key_findings": ["detailed finding1 with full explanation and evidence", "finding2 with context and methodology", "finding3 with impact analysis", "finding4 with comparative analysis", "finding5 with future implications", "finding6 with risk assessment", "finding7 with stakeholder impact"],
           "confidence_score": 0.8,
-          "recommendations": ["strategic rec1", "tactical rec2", "long-term rec3"],
-          "gaps_identified": ["research gap1", "data gap2", "methodological gap3"]
+          "recommendations": ["strategic rec1 with detailed implementation plan", "tactical rec2 with resource requirements", "long-term rec3 with timeline and milestones", "rec4 with risk mitigation strategies"],
+          "gaps_identified": ["research gap1 with detailed description and impact", "data gap2 with methodology implications", "methodological gap3 with alternative approaches", "gap4 with future research opportunities"]
         }}
       `
     };

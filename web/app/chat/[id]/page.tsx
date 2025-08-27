@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import Logo from "../../components/Logo";
 import ReactMarkdown from "react-markdown";
+import PdfDownload from "../../components/PdfDownload";
 
 interface ResearchResult {
   report: string;
@@ -46,6 +47,8 @@ export default function ChatSessionPage() {
   const [logs, setLogs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<"results" | "sources" | "logs">("results");
   const [sessions, setSessions] = useState<SessionItem[]>([]);
+  const [currentSession, setCurrentSession] = useState<SessionItem | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   const getAuthHeaders = () => {
@@ -62,6 +65,12 @@ export default function ChatSessionPage() {
       if (res.ok) {
         const data = await res.json();
         setSessions(data.sessions || []);
+        
+        // Find current session
+        const current = data.sessions?.find((s: SessionItem) => s.id === sessionId);
+        if (current) {
+          setCurrentSession(current);
+        }
       } else if (res.status === 401) {
         router.push("/signin");
       }
@@ -218,7 +227,32 @@ export default function ChatSessionPage() {
 
               {!loading && activeTab === "results" && result && (
                 <div className="space-y-3">
-                  <div className="text-sm text-gray-400">Status: {status}</div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-400">Status: {status}</div>
+                    {currentSession && (
+                      <PdfDownload
+                        report={result.report || ""}
+                        query={currentSession.query}
+                        depth={currentSession.depth}
+                        status={status}
+                        sourcesCount={sources.length}
+                        sources={sources}
+                        onDownloadStart={() => setPdfLoading(true)}
+                        onDownloadComplete={() => setPdfLoading(false)}
+                      />
+                    )}
+                  </div>
+                  
+                  {pdfLoading && (
+                    <div className="text-sm text-indigo-400 flex items-center">
+                      <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Generating PDF...
+                    </div>
+                  )}
+                  
                   <div className="bg-gray-700 rounded-lg p-4">
                     <h3 className="font-medium text-white mb-2">Research Report</h3>
                     <div className="max-h-96 overflow-y-auto prose prose-sm prose-invert max-w-none">
