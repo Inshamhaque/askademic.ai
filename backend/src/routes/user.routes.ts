@@ -1,10 +1,11 @@
 import { Router } from "express";
+import * as userController from "../controllers/user.controller.js";
 
 const router = Router();
 
-// Basic user endpoints (placeholder for now)
-router.get("/profile", (req, res) => {
-  res.json({ message: "User profile endpoint - implement authentication" });
-});
+// Authentication routes
+router.post("/signup", userController.signup);
+router.post("/signin", userController.signin);
+router.post("/signout", userController.signout);
 
 export default router;
