@@ -13,13 +13,13 @@ export const listUserSessions = async (userId: string) => {
       }
     }
   });
-      return sessions.map(s => ({
-      id: s.id,
-      query: s.query || 'Untitled Research',
-      depth: s.depth || 'deep',
-      createdAt: s.createdAt,
-      latestStatus: s.status || (s.agentRuns[0]?.status ?? 'pending')
-    }));
+  return sessions.map(s => ({
+    id: s.id,
+    createdAt: s.createdAt,
+    query: s.query || 'Untitled Research',
+    depth: s.depth || 'deep',
+    latestStatus: s.status || (s.agentRuns[0]?.status ?? 'unknown')
+  }));
 };
 
 export const initiateResearch = async (query: string, depth: string, userId: string) => {

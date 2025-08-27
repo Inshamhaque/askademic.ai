@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Logo from '../components/Logo';
-import ThemeToggle from '../components/ThemeToggle';
 
 export default function SignInPage() {
   const [formData, setFormData] = useState({
@@ -50,19 +49,18 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700">
-        <div className="flex justify-between items-center">
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8 bg-gray-800 p-8 rounded-2xl shadow-xl border border-gray-700">
+        <div className="flex justify-center">
           <Logo showText={false} />
-          <ThemeToggle />
         </div>
         
         <div>
-          <h2 className="mt-2 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
+          <h2 className="mt-2 text-center text-3xl font-extrabold text-white">
             Sign in to your account
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-            Welcome back to <span className="text-indigo-600 dark:text-indigo-400 font-semibold">Askademic</span>
+          <p className="mt-2 text-center text-sm text-gray-400">
+            Welcome back to <span className="text-indigo-400 font-semibold">Askademic</span>
           </p>
         </div>
         
@@ -75,7 +73,7 @@ export default function SignInPage() {
               autoComplete="email"
               required
               placeholder="Email address"
-              className="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              className="w-full px-3 py-2 rounded-lg bg-gray-700 border border-gray-600 text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
@@ -87,14 +85,14 @@ export default function SignInPage() {
               autoComplete="current-password"
               required
               placeholder="Password"
-              className="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              className="w-full px-3 py-2 rounded-lg bg-gray-700 border border-gray-600 text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
             />
           </div>
 
           {error && (
-            <div className="text-red-500 text-sm text-center">{error}</div>
+            <div className="text-red-400 text-sm text-center">{error}</div>
           )}
 
           <button
@@ -106,7 +104,7 @@ export default function SignInPage() {
           </button>
 
           <div className="text-center">
-            <Link href="/signup" className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 text-sm">
+            <Link href="/signup" className="text-indigo-400 hover:text-indigo-300 text-sm">
               Don't have an account? Sign up
             </Link>
           </div>

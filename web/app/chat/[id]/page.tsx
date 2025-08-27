@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
+import Logo from "../../components/Logo";
+import ReactMarkdown from "react-markdown";
 
 interface ResearchResult {
   report: string;
@@ -26,6 +28,8 @@ interface Source {
 interface SessionItem {
   id: string;
   createdAt: string;
+  query: string;
+  depth: string;
   latestStatus: string;
 }
 
@@ -153,12 +157,12 @@ export default function ChatSessionPage() {
   const isActive = (id: string) => id === sessionId;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b">
+    <div className="min-h-screen bg-gray-900">
+      <header className="bg-gray-800 shadow-sm border-b border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <h1 className="text-2xl font-bold text-indigo-600">Askademic</h1>
-            <button onClick={handleSignOut} className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">Sign Out</button>
+            <Logo />
+            <button onClick={handleSignOut} className="text-gray-300 hover:text-gray-100 px-3 py-2 rounded-md text-sm font-medium">Sign Out</button>
           </div>
         </div>
       </header>
@@ -166,21 +170,26 @@ export default function ChatSessionPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Sidebar */}
         <aside className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow-sm border">
-            <div className="px-4 py-3 border-b flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Your Sessions</h2>
-              <Link href="/chat" className="text-xs text-indigo-600 hover:text-indigo-500">+ New</Link>
+          <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700">
+            <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white">Your Sessions</h2>
+              <Link href="/chat" className="text-xs text-indigo-400 hover:text-indigo-300">+ New</Link>
             </div>
-            <div className="max-h-[70vh] overflow-y-auto divide-y">
+            <div className="max-h-[70vh] overflow-y-auto divide-y divide-gray-700">
               {sessions.length === 0 ? (
-                <div className="p-4 text-sm text-gray-500">No sessions yet</div>
+                <div className="p-4 text-sm text-gray-400">No sessions yet</div>
               ) : (
                 sessions.map(s => (
-                  <Link key={s.id} href={`/chat/${s.id}`} className={`block p-4 hover:bg-gray-50 ${isActive(s.id) ? 'bg-indigo-50' : ''}`}>
-                    <div className="text-sm font-medium text-gray-900 truncate">{s.id}</div>
-                    <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
-                      <span className={`inline-block w-2 h-2 rounded-full ${s.latestStatus === 'completed' ? 'bg-green-500' : s.latestStatus === 'failed' ? 'bg-red-500' : 'bg-yellow-500'}`}></span>
-                      <span className="capitalize">{s.latestStatus}</span>
+                  <Link key={s.id} href={`/chat/${s.id}`} className={`block p-4 hover:bg-gray-700 ${isActive(s.id) ? 'bg-indigo-900/20' : ''}`}>
+                    <div className="text-sm font-medium text-white truncate">{s.query}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="text-xs text-gray-400 flex items-center gap-2">
+                        <span className={`inline-block w-2 h-2 rounded-full ${s.latestStatus === 'completed' ? 'bg-green-500' : s.latestStatus === 'failed' ? 'bg-red-500' : 'bg-yellow-500'}`}></span>
+                        <span className="capitalize">{s.latestStatus}</span>
+                      </div>
+                      <span className="text-xs px-2 py-1 rounded-full bg-gray-700 text-gray-300 capitalize">
+                        {s.depth}
+                      </span>
                     </div>
                   </Link>
                 ))
@@ -192,28 +201,49 @@ export default function ChatSessionPage() {
         {/* Main content */}
         <section className="lg:col-span-3">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded mb-4 text-sm">{error}</div>
+            <div className="bg-red-900/20 border border-red-800 text-red-400 px-4 py-2 rounded mb-4 text-sm">{error}</div>
           )}
 
-          <div className="bg-white rounded-lg shadow-sm border">
-            <div className="border-b">
+          <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700">
+            <div className="border-b border-gray-700">
               <nav className="flex space-x-8 px-6">
-                <button onClick={() => setActiveTab("results")} className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === "results" ? "border-indigo-500 text-indigo-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`}>Results</button>
-                <button onClick={() => setActiveTab("sources")} className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === "sources" ? "border-indigo-500 text-indigo-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`}>Sources</button>
-                <button onClick={() => setActiveTab("logs")} className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === "logs" ? "border-indigo-500 text-indigo-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`}>Logs</button>
+                <button onClick={() => setActiveTab("results")} className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === "results" ? "border-indigo-500 text-indigo-400" : "border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600"}`}>Results</button>
+                <button onClick={() => setActiveTab("sources")} className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === "sources" ? "border-indigo-500 text-indigo-400" : "border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600"}`}>Sources</button>
+                <button onClick={() => setActiveTab("logs")} className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === "logs" ? "border-indigo-500 text-indigo-400" : "border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600"}`}>Logs</button>
               </nav>
             </div>
 
             <div className="p-6">
-              {loading && <p className="text-gray-500">Loading…</p>}
+              {loading && <p className="text-gray-400">Loading…</p>}
 
               {!loading && activeTab === "results" && result && (
                 <div className="space-y-3">
-                  <div className="text-sm text-gray-600">Status: {status}</div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h3 className="font-medium text-gray-900 mb-2">Research Report</h3>
-                    <div className="prose prose-sm max-h-96 overflow-y-auto">
-                      <div dangerouslySetInnerHTML={{ __html: (result.report || "").replace(/\n/g, "<br>") }} />
+                  <div className="text-sm text-gray-400">Status: {status}</div>
+                  <div className="bg-gray-700 rounded-lg p-4">
+                    <h3 className="font-medium text-white mb-2">Research Report</h3>
+                    <div className="max-h-96 overflow-y-auto prose prose-sm prose-invert max-w-none">
+                      <ReactMarkdown
+                        components={{
+                          h1: ({ children }) => <h1 className="text-xl font-bold text-white mb-4">{children}</h1>,
+                          h2: ({ children }) => <h2 className="text-lg font-semibold text-white mb-3">{children}</h2>,
+                          h3: ({ children }) => <h3 className="text-base font-medium text-white mb-2">{children}</h3>,
+                          p: ({ children }) => <p className="text-gray-300 mb-3 leading-relaxed">{children}</p>,
+                          ul: ({ children }) => <ul className="list-disc list-inside text-gray-300 mb-3 space-y-1">{children}</ul>,
+                          ol: ({ children }) => <ol className="list-decimal list-inside text-gray-300 mb-3 space-y-1">{children}</ol>,
+                          li: ({ children }) => <li className="text-gray-300">{children}</li>,
+                          strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                          em: ({ children }) => <em className="italic text-gray-200">{children}</em>,
+                          code: ({ children }) => <code className="bg-gray-800 text-indigo-300 px-1 py-0.5 rounded text-sm">{children}</code>,
+                          pre: ({ children }) => <pre className="bg-gray-800 text-gray-300 p-3 rounded mb-3 overflow-x-auto">{children}</pre>,
+                          blockquote: ({ children }) => <blockquote className="border-l-4 border-indigo-500 pl-4 text-gray-300 italic mb-3">{children}</blockquote>,
+                          a: ({ children, href }) => <a href={href} className="text-indigo-400 hover:text-indigo-300 underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                          table: ({ children }) => <div className="overflow-x-auto mb-3"><table className="min-w-full border border-gray-600">{children}</table></div>,
+                          th: ({ children }) => <th className="border border-gray-600 px-3 py-2 text-left text-white font-medium bg-gray-800">{children}</th>,
+                          td: ({ children }) => <td className="border border-gray-600 px-3 py-2 text-gray-300">{children}</td>,
+                        }}
+                      >
+                        {result.report || ""}
+                      </ReactMarkdown>
                     </div>
                   </div>
                 </div>
@@ -221,12 +251,12 @@ export default function ChatSessionPage() {
 
               {!loading && activeTab === "sources" && (
                 <div className="space-y-4">
-                  <h3 className="font-medium text-gray-900">Sources ({sources.length})</h3>
+                  <h3 className="font-medium text-white">Sources ({sources.length})</h3>
                   {sources.map((s, i) => (
-                    <div key={i} className="border rounded-lg p-3">
-                      <h4 className="font-medium text-sm text-gray-900 mb-1">{s.title}</h4>
-                      <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-500 block mb-2">{s.url}</a>
-                      <p className="text-xs text-gray-600 line-clamp-3">{s.content}</p>
+                    <div key={i} className="border border-gray-700 rounded-lg p-3">
+                      <h4 className="font-medium text-sm text-white mb-1">{s.title}</h4>
+                      <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-400 hover:text-indigo-300 block mb-2">{s.url}</a>
+                      <p className="text-xs text-gray-400 line-clamp-3">{s.content}</p>
                     </div>
                   ))}
                 </div>
@@ -234,10 +264,10 @@ export default function ChatSessionPage() {
 
               {!loading && activeTab === "logs" && (
                 <div className="space-y-2">
-                  <h3 className="font-medium text-gray-900">Process Logs</h3>
+                  <h3 className="font-medium text-white">Process Logs</h3>
                   <div className="max-h-96 overflow-y-auto space-y-2">
                     {logs.map((log, i) => (
-                      <div key={i} className="text-xs text-gray-600 bg-gray-50 p-2 rounded">{log}</div>
+                      <div key={i} className="text-xs text-gray-400 bg-gray-700 p-2 rounded">{log}</div>
                     ))}
                   </div>
                 </div>
