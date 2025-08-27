@@ -1,106 +1,114 @@
-import { PrismaClient } from "../generated/prisma/index.js";
-import bcrypt from "bcryptjs";
-import crypto from "crypto";
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+import { PrismaClient } from '../../dist/generated/prisma/index.js';
 
 const prisma = new PrismaClient();
 
-export const signup = async (name: string, email: string, password: string) => {
-  try {
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
-    });
+interface SignupData {
+  name: string;
+  email: string;
+  password: string;
+}
 
+interface SigninData {
+  email: string;
+  password: string;
+}
+
+interface AuthResult {
+  error?: string;
+  sessionToken?: string;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
+
+export const signup = async (data: SignupData): Promise<AuthResult> => {
+  try {
+    const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
     if (existingUser) {
-      throw new Error("User with this email already exists");
+      return { error: 'User with this email already exists' };
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await bcrypt.hash(data.password, 12);
 
-    // Create user
     const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword
-      }
+      data: { name: data.name, email: data.email, password: hashedPassword }
     });
 
-    // Create session
+    const sessionToken = crypto.randomBytes(32).toString('hex');
     const session = await prisma.session.create({
       data: {
-        userId: user.id
+        token: sessionToken,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       }
     });
 
     return {
-      message: "User created successfully",
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email
-      },
-      sessionToken: session.id
+      sessionToken: session.token,
+      user: { id: user.id, name: user.name ?? '', email: user.email }
     };
   } catch (error: any) {
-    throw new Error(`Failed to create user: ${error.message}`);
+    console.error('Signup service error:', error);
+    return { error: error?.message || 'Failed to create user' };
   }
 };
 
-export const signin = async (email: string, password: string) => {
+export const signin = async (data: SigninData): Promise<AuthResult> => {
   try {
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email }
-    });
-
+    const user = await prisma.user.findUnique({ where: { email: data.email } });
     if (!user) {
-      throw new Error("Invalid email or password");
+      return { error: 'Invalid email or password' };
     }
 
-    // Check password
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
-      throw new Error("Invalid email or password");
+    const isPasswordValid = await bcrypt.compare(data.password, user.password);
+    if (!isPasswordValid) {
+      return { error: 'Invalid email or password' };
     }
 
-    // Create session
+    const sessionToken = crypto.randomBytes(32).toString('hex');
     const session = await prisma.session.create({
       data: {
-        userId: user.id
+        token: sessionToken,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       }
     });
 
     return {
-      message: "Sign in successful",
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email
-      },
-      sessionToken: session.id
+      sessionToken: session.token,
+      user: { id: user.id, name: user.name ?? '', email: user.email }
     };
   } catch (error: any) {
-    throw new Error(`Failed to sign in: ${error.message}`);
+    console.error('Signin service error:', error);
+    return { error: error?.message || 'Failed to authenticate user' };
   }
 };
 
-export const signout = async (sessionToken: string) => {
+export const signout = async (sessionToken: string): Promise<void> => {
   try {
-    if (!sessionToken) {
-      throw new Error("Session token is required");
+    await prisma.session.delete({ where: { token: sessionToken } });
+  } catch (error) {
+    console.error('Signout service error:', error);
+    throw new Error('Failed to sign out');
+  }
+};
+
+export const validateSession = async (sessionToken: string): Promise<{ userId: string; user: any } | null> => {
+  try {
+    const session = await prisma.session.findUnique({ where: { token: sessionToken }, include: { user: true } });
+    if (!session || session.expiresAt < new Date()) {
+      return null;
     }
-
-    // Delete session
-    await prisma.session.delete({
-      where: { id: sessionToken }
-    });
-
     return {
-      message: "Sign out successful"
+      userId: session.userId,
+      user: { id: session.user.id, name: session.user.name ?? '', email: session.user.email }
     };
-  } catch (error: any) {
-    throw new Error(`Failed to sign out: ${error.message}`);
+  } catch (error) {
+    console.error('Session validation error:', error);
+    return null;
   }
 };

@@ -30,27 +30,36 @@ interface Source {
   relevance_score: number;
 }
 
+interface ChatMessage {
+  id: string;
+  query: string;
+  depth: string;
+  timestamp: Date;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  result?: ResearchResult;
+  sources?: Source[];
+  logs?: string[];
+}
+
 export default function ChatPage() {
   const [query, setQuery] = useState('');
   const [depth, setDepth] = useState<'quick' | 'deep' | 'comprehensive'>('deep');
   const [loading, setLoading] = useState(false);
-  const [currentSession, setCurrentSession] = useState<ResearchSession | null>(null);
-  const [researchResult, setResearchResult] = useState<ResearchResult | null>(null);
-  const [sources, setSources] = useState<Source[]>([]);
-  const [logs, setLogs] = useState<string[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(null);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'chat' | 'sources' | 'logs'>('chat');
   const router = useRouter();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    // Check if user is authenticated
-    const sessionToken = localStorage.getItem('sessionToken');
-    if (!sessionToken) {
-      router.push('/signin');
-      return;
-    }
-  }, [router]);
+  // useEffect(() => {
+  //   // Check if user is authenticated
+  //   const sessionToken = localStorage.getItem('sessionToken');
+  //   if (!sessionToken) {
+  //     router.push('/signin');
+  //     return;
+  //   }
+  // }, [router]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -58,7 +67,15 @@ export default function ChatPage() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [researchResult, logs]);
+  }, [chatMessages]);
+
+  const getAuthHeaders = () => {
+    const sessionToken = localStorage.getItem('sessionToken');
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${sessionToken}`
+    };
+  };
 
   const startResearch = async () => {
     if (!query.trim()) {
@@ -68,17 +85,23 @@ export default function ChatPage() {
 
     setLoading(true);
     setError('');
-    setCurrentSession(null);
-    setResearchResult(null);
-    setSources([]);
-    setLogs([]);
+
+    // Create a new chat message
+    const newMessage: ChatMessage = {
+      id: Date.now().toString(),
+      query: query.trim(),
+      depth,
+      timestamp: new Date(),
+      status: 'pending'
+    };
+
+    setChatMessages(prev => [...prev, newMessage]);
+    setSelectedMessage(newMessage);
 
     try {
       const response = await fetch('http://localhost:8080/research/initiate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           query: query.trim(),
           depth,
@@ -87,34 +110,57 @@ export default function ChatPage() {
 
       if (response.ok) {
         const session: ResearchSession = await response.json();
-        setCurrentSession(session);
+        
+        // Update message with session info
+        setChatMessages(prev => prev.map(msg => 
+          msg.id === newMessage.id 
+            ? { ...msg, status: 'processing', sessionId: session.sessionId }
+            : msg
+        ));
         
         // Start polling for status
-        pollResearchStatus(session.sessionId);
+        pollResearchStatus(session.sessionId, newMessage.id);
       } else {
         const data = await response.json();
         setError(data.error || 'Failed to start research');
+        setChatMessages(prev => prev.map(msg => 
+          msg.id === newMessage.id 
+            ? { ...msg, status: 'failed' }
+            : msg
+        ));
       }
     } catch (err) {
       setError('Network error. Please try again.');
+      setChatMessages(prev => prev.map(msg => 
+        msg.id === newMessage.id 
+          ? { ...msg, status: 'failed' }
+          : msg
+      ));
     } finally {
       setLoading(false);
+      setQuery('');
     }
   };
 
-  const pollResearchStatus = async (sessionId: string) => {
+  const pollResearchStatus = async (sessionId: string, messageId: string) => {
     const pollInterval = setInterval(async () => {
       try {
-        const response = await fetch(`http://localhost:8080/research/status/${sessionId}`);
+        const response = await fetch(`http://localhost:8080/research/status/${sessionId}`, {
+          headers: getAuthHeaders()
+        });
         if (response.ok) {
           const status = await response.json();
           
           if (status.status === 'completed') {
             clearInterval(pollInterval);
-            await fetchResearchResults(sessionId);
+            await fetchResearchResults(sessionId, messageId);
           } else if (status.status === 'failed') {
             clearInterval(pollInterval);
-            setError('Research failed. Please try again.');
+            setChatMessages(prev => prev.map(msg => 
+              msg.id === messageId 
+                ? { ...msg, status: 'failed' }
+                : msg
+            ));
           }
         }
       } catch (err) {
@@ -123,37 +169,113 @@ export default function ChatPage() {
     }, 2000); // Poll every 2 seconds
   };
 
-  const fetchResearchResults = async (sessionId: string) => {
+  const fetchResearchResults = async (sessionId: string, messageId: string) => {
     try {
       // Fetch report
-      const reportResponse = await fetch(`http://localhost:8080/research/report/${sessionId}`);
+      const reportResponse = await fetch(`http://localhost:8080/research/report/${sessionId}`, {
+        headers: getAuthHeaders()
+      });
+      let result: ResearchResult | undefined;
       if (reportResponse.ok) {
-        const reportData = await reportResponse.json();
-        setResearchResult(reportData);
+        result = await reportResponse.json();
       }
 
       // Fetch sources
-      const sourcesResponse = await fetch(`http://localhost:8080/research/sources/${sessionId}`);
+      const sourcesResponse = await fetch(`http://localhost:8080/research/sources/${sessionId}`, {
+        headers: getAuthHeaders()
+      });
+      let sources: Source[] = [];
       if (sourcesResponse.ok) {
         const sourcesData = await sourcesResponse.json();
-        setSources(sourcesData.sources || []);
+        sources = sourcesData.sources || [];
       }
 
       // Fetch logs
-      const logsResponse = await fetch(`http://localhost:8080/research/logs/${sessionId}`);
+      const logsResponse = await fetch(`http://localhost:8080/research/logs/${sessionId}`, {
+        headers: getAuthHeaders()
+      });
+      let logs: string[] = [];
       if (logsResponse.ok) {
         const logsData = await logsResponse.json();
-        setLogs(logsData.logs || []);
+        logs = logsData.logs || [];
       }
+
+      // Update message with results
+      setChatMessages(prev => prev.map(msg => 
+        msg.id === messageId 
+          ? { 
+              ...msg, 
+              status: 'completed', 
+              result, 
+              sources, 
+              logs 
+            }
+          : msg
+      ));
+
+      // Update selected message if it's the current one
+      setSelectedMessage(prev => 
+        prev?.id === messageId 
+          ? { 
+              ...prev, 
+              status: 'completed', 
+              result, 
+              sources, 
+              logs 
+            }
+          : prev
+      );
+
     } catch (err) {
       console.error('Error fetching results:', err);
+      setChatMessages(prev => prev.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, status: 'failed' }
+          : msg
+      ));
     }
   };
 
-  const handleSignOut = () => {
-    localStorage.removeItem('sessionToken');
-    localStorage.removeItem('user');
-    router.push('/');
+  const handleSignOut = async () => {
+    try {
+      await fetch('http://localhost:8080/user/signout', {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+    } catch (err) {
+      console.error('Signout error:', err);
+    } finally {
+      localStorage.removeItem('sessionToken');
+      localStorage.removeItem('user');
+      router.push('/');
+    }
+  };
+
+  const formatTimestamp = (date: Date) => {
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'text-green-500';
+      case 'processing': return 'text-yellow-500';
+      case 'failed': return 'text-red-500';
+      default: return 'text-gray-500';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed': return '✓';
+      case 'processing': return '⏳';
+      case 'failed': return '✗';
+      default: return '○';
+    }
   };
 
   return (
@@ -179,8 +301,50 @@ export default function ChatPage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Panel - Chat Interface */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Left Panel - Chat History */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-lg shadow-sm border">
+              <div className="px-4 py-3 border-b">
+                <h2 className="text-lg font-semibold text-gray-900">Chat History</h2>
+              </div>
+              <div className="max-h-96 overflow-y-auto">
+                {chatMessages.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500 text-sm">
+                    No research queries yet
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {chatMessages.map((message) => (
+                      <button
+                        key={message.id}
+                        onClick={() => setSelectedMessage(message)}
+                        className={`w-full text-left p-4 hover:bg-gray-50 transition ${
+                          selectedMessage?.id === message.id ? 'bg-indigo-50 border-r-2 border-indigo-500' : ''
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {message.query}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {formatTimestamp(message.timestamp)}
+                            </p>
+                          </div>
+                          <div className={`ml-2 text-sm ${getStatusColor(message.status)}`}>
+                            {getStatusIcon(message.status)}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Center Panel - Chat Interface */}
           <div className="lg:col-span-2">
             <div className="bg-white rounded-lg shadow-sm border">
               {/* Chat Header */}
@@ -191,43 +355,60 @@ export default function ChatPage() {
 
               {/* Chat Messages */}
               <div className="h-96 overflow-y-auto p-6 space-y-4">
-                {currentSession && (
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center">
-                        <span className="text-white text-sm font-medium">AI</span>
+                {selectedMessage && (
+                  <div className="space-y-4">
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center">
+                          <span className="text-white text-sm font-medium">AI</span>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="bg-indigo-50 rounded-lg p-3">
+                          <p className="text-sm text-gray-900">
+                            I'm researching: <strong>"{selectedMessage.query}"</strong>
+                          </p>
+                          <p className="text-xs text-gray-600 mt-1">
+                            Status: {selectedMessage.status} • Depth: {selectedMessage.depth}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex-1">
-                      <div className="bg-indigo-50 rounded-lg p-3">
-                        <p className="text-sm text-gray-900">
-                          I'm researching: <strong>"{query}"</strong>
-                        </p>
-                        <p className="text-xs text-gray-600 mt-1">
-                          Status: {currentSession.status} • {currentSession.message}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
-                {researchResult && (
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                        <span className="text-white text-sm font-medium">✓</span>
+                    {selectedMessage.status === 'completed' && selectedMessage.result && (
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0">
+                          <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                            <span className="text-white text-sm font-medium">✓</span>
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <div className="bg-green-50 rounded-lg p-3">
+                            <p className="text-sm text-gray-900 font-medium">Research Complete!</p>
+                            <p className="text-xs text-gray-600 mt-1">
+                              Confidence: {(selectedMessage.result.metadata.confidence_level * 100).toFixed(1)}% • 
+                              Sources: {selectedMessage.result.metadata.sources_collected} • 
+                              Duration: {Math.round(selectedMessage.result.metadata.analysis_duration / 1000)}s
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex-1">
-                      <div className="bg-green-50 rounded-lg p-3">
-                        <p className="text-sm text-gray-900 font-medium">Research Complete!</p>
-                        <p className="text-xs text-gray-600 mt-1">
-                          Confidence: {(researchResult.metadata.confidence_level * 100).toFixed(1)}% • 
-                          Sources: {researchResult.metadata.sources_collected} • 
-                          Duration: {Math.round(researchResult.metadata.analysis_duration / 1000)}s
-                        </p>
+                    )}
+
+                    {selectedMessage.status === 'failed' && (
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0">
+                          <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+                            <span className="text-white text-sm font-medium">!</span>
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <div className="bg-red-50 rounded-lg p-3">
+                            <p className="text-sm text-red-900">Research failed. Please try again.</p>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
 
@@ -335,23 +516,23 @@ export default function ChatPage() {
 
               {/* Tab Content */}
               <div className="p-6">
-                {activeTab === 'chat' && researchResult && (
+                {activeTab === 'chat' && selectedMessage?.result && (
                   <div className="space-y-4">
                     <div className="bg-gray-50 rounded-lg p-4">
                       <h3 className="font-medium text-gray-900 mb-2">Research Report</h3>
                       <div className="prose prose-sm max-h-96 overflow-y-auto">
                         <div dangerouslySetInnerHTML={{ 
-                          __html: researchResult.report.replace(/\n/g, '<br>') 
+                          __html: selectedMessage.result.report.replace(/\n/g, '<br>') 
                         }} />
                       </div>
                     </div>
                   </div>
                 )}
 
-                {activeTab === 'sources' && (
+                {activeTab === 'sources' && selectedMessage?.sources && (
                   <div className="space-y-4">
-                    <h3 className="font-medium text-gray-900">Sources ({sources.length})</h3>
-                    {sources.map((source, index) => (
+                    <h3 className="font-medium text-gray-900">Sources ({selectedMessage.sources.length})</h3>
+                    {selectedMessage.sources.map((source, index) => (
                       <div key={index} className="border rounded-lg p-3">
                         <h4 className="font-medium text-sm text-gray-900 mb-1">
                           {source.title}
@@ -375,11 +556,11 @@ export default function ChatPage() {
                   </div>
                 )}
 
-                {activeTab === 'logs' && (
+                {activeTab === 'logs' && selectedMessage?.logs && (
                   <div className="space-y-2">
                     <h3 className="font-medium text-gray-900">Process Logs</h3>
                     <div className="max-h-96 overflow-y-auto space-y-2">
-                      {logs.map((log, index) => (
+                      {selectedMessage.logs.map((log, index) => (
                         <div key={index} className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
                           {log}
                         </div>
@@ -388,9 +569,15 @@ export default function ChatPage() {
                   </div>
                 )}
 
-                {!researchResult && activeTab === 'chat' && (
+                {!selectedMessage && (
                   <div className="text-center text-gray-500 py-8">
-                    <p>Start a research query to see results here</p>
+                    <p>Select a research query to see results</p>
+                  </div>
+                )}
+
+                {selectedMessage && !selectedMessage.result && activeTab === 'chat' && (
+                  <div className="text-center text-gray-500 py-8">
+                    <p>Research in progress...</p>
                   </div>
                 )}
               </div>

@@ -1,7 +1,11 @@
 import { Router } from "express";
 import * as researchController from "../controllers/research.controller.js";
+import { authenticateUser } from "../middleware/auth.js";
 
 const router = Router();
+
+// Apply authentication middleware to all research routes
+router.use(authenticateUser);
 
 // Research workflow endpoints
 router.post("/initiate", researchController.initiateResearch);

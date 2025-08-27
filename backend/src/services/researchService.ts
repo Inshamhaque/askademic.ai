@@ -1,192 +1,209 @@
-import { PrismaClient } from "../generated/prisma/index.js";
+import { PrismaClient } from "../../dist/generated/prisma/index.js";
 import researchAgent from "../agents/researchAgent.js";
+import crypto from "crypto";
 
 const prisma = new PrismaClient();
 
-export const initiateResearch = async (query: string, depth: "quick" | "deep" | "comprehensive", sources?: string[]) => {
+export const initiateResearch = async (query: string, depth: string, userId: string) => {
   try {
-    // Create a session first (you'll need to handle user creation/auth properly)
-    // For now, we'll create a default user if it doesn't exist
-    let user = await prisma.user.findFirst({
-      where: { email: "default@askademic.ai" }
+    // Find user
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
     });
-    
+
     if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email: "default@askademic.ai",
-          name: "Default User",
-          password: "default-password" // In production, handle auth properly
-        }
-      });
+      throw new Error("User not found");
     }
 
+    // Create session for this research with token + expiry
+    const sessionToken = crypto.randomBytes(32).toString("hex");
     const session = await prisma.session.create({
-      data: { 
-        userId: user.id
+      data: {
+        userId: userId,
+        token: sessionToken,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
       }
     });
 
-    // Start the research using the agent
+    // Execute research with the agent
     const agentRunId = await researchAgent.executeResearch(session.id, {
       query,
-      depth,
-      sources: sources || []
+      depth: depth as 'quick' | 'deep' | 'comprehensive'
     });
 
     return {
       sessionId: session.id,
-      agentRunId,
+      agentRunId: agentRunId,
       status: "initiated",
-      message: "Research initiated, processing..."
+      message: 'Research initiated successfully'
     };
   } catch (error: any) {
+    console.error("Error in initiateResearch:", error);
     throw new Error(`Failed to initiate research: ${error.message}`);
   }
 };
 
-export const getSources = async (sessionId: string) => {
+export const getResearchStatus = async (sessionId: string, userId: string) => {
   try {
-    // Get the latest agent run for this session
     const agentRun = await prisma.agentRun.findFirst({
-      where: { sessionId },
-      orderBy: { createdAt: "desc" }
+      where: {
+        sessionId: sessionId,
+        session: {
+          userId: userId
+        }
+      },
+      orderBy: { createdAt: 'desc' }
     });
 
     if (!agentRun) {
-      throw new Error("No research found for this session");
-    }
-
-    const output = agentRun.output as any;
-    return { 
-      sessionId, 
-      sources: output?.sources || [],
-      status: agentRun.status
-    };
-  } catch (error: any) {
-    throw new Error(`Failed to get sources: ${error.message}`);
-  }
-};
-
-export const analyzeResearch = async (sessionId: string, analysisLevel: "quick" | "deep" | "comprehensive") => {
-  try {
-    // Get the latest agent run for this session
-    const agentRun = await prisma.agentRun.findFirst({
-      where: { sessionId },
-      orderBy: { createdAt: "desc" }
-    });
-
-    if (!agentRun) {
-      throw new Error("No research found for this session");
-    }
-
-    const output = agentRun.output as any;
-    return {
-      sessionId,
-      analysis: output?.analysis || {},
-      status: agentRun.status
-    };
-  } catch (error: any) {
-    throw new Error(`Failed to analyze research: ${error.message}`);
-  }
-};
-
-export const getReport = async (sessionId: string) => {
-  try {
-    // Get the latest agent run for this session
-    const agentRun = await prisma.agentRun.findFirst({
-      where: { sessionId },
-      orderBy: { createdAt: "desc" }
-    });
-
-    if (!agentRun) {
-      throw new Error("No research found for this session");
-    }
-
-    const output = agentRun.output as any;
-    return { 
-      sessionId, 
-      report: output?.report || "",
-      status: agentRun.status,
-      metadata: output?.metadata || {}
-    };
-  } catch (error: any) {
-    throw new Error(`Failed to get report: ${error.message}`);
-  }
-};
-
-export const addFeedback = async (sessionId: string, feedback: string) => {
-  try {
-    // Get the latest agent run for this session
-    const agentRun = await prisma.agentRun.findFirst({
-      where: { sessionId },
-      orderBy: { createdAt: "desc" }
-    });
-
-    if (!agentRun) {
-      throw new Error("No research found for this session");
-    }
-
-    // Use the research agent to refine the report
-    const refinedAgentRunId = await researchAgent.refineResearch(agentRun.id, feedback);
-
-    return { 
-      sessionId, 
-      originalAgentRunId: agentRun.id,
-      refinedAgentRunId,
-      message: "Research refined based on feedback"
-    };
-  } catch (error: any) {
-    throw new Error(`Failed to add feedback: ${error.message}`);
-  }
-};
-
-export const getResearchStatus = async (sessionId: string) => {
-  try {
-    const agentRun = await prisma.agentRun.findFirst({
-      where: { sessionId },
-      orderBy: { createdAt: "desc" }
-    });
-
-    if (!agentRun) {
-      return { sessionId, status: "not_found" };
+      throw new Error("Research session not found");
     }
 
     return {
-      sessionId,
-      agentRunId: agentRun.id,
       status: agentRun.status,
-      createdAt: agentRun.createdAt
+      message: `Research ${agentRun.status}`
     };
   } catch (error: any) {
+    console.error("Error in getResearchStatus:", error);
     throw new Error(`Failed to get research status: ${error.message}`);
   }
 };
 
-export const getAgentLogs = async (sessionId: string) => {
+export const getAgentLogs = async (sessionId: string, userId: string) => {
   try {
     const agentRun = await prisma.agentRun.findFirst({
-      where: { sessionId },
-      orderBy: { createdAt: "desc" }
+      where: {
+        sessionId: sessionId,
+        session: {
+          userId: userId
+        }
+      },
+      orderBy: { createdAt: 'desc' }
     });
 
     if (!agentRun) {
-      return { sessionId, logs: [], status: "not_found" };
+      throw new Error("Research session not found");
+    }
+
+    const output = agentRun.output as any;
+    return {
+      logs: output.logs || []
+    };
+  } catch (error: any) {
+    console.error("Error in getAgentLogs:", error);
+    throw new Error(`Failed to get agent logs: ${error.message}`);
+  }
+};
+
+export const getSources = async (sessionId: string, userId: string) => {
+  try {
+    const agentRun = await prisma.agentRun.findFirst({
+      where: {
+        sessionId: sessionId,
+        session: {
+          userId: userId
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!agentRun) {
+      throw new Error("Research session not found");
+    }
+
+    const output = agentRun.output as any;
+    return {
+      sources: output.sources || []
+    };
+  } catch (error: any) {
+    console.error("Error in getSources:", error);
+    throw new Error(`Failed to get sources: ${error.message}`);
+  }
+};
+
+export const analyzeResearch = async (sessionId: string, analysisType: string, userId: string) => {
+  try {
+    const agentRun = await prisma.agentRun.findFirst({
+      where: {
+        sessionId: sessionId,
+        session: {
+          userId: userId
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!agentRun) {
+      throw new Error("Research session not found");
+    }
+
+    const output = agentRun.output as any;
+    return {
+      analysis: output.analysis || {},
+      analysisType: analysisType
+    };
+  } catch (error: any) {
+    console.error("Error in analyzeResearch:", error);
+    throw new Error(`Failed to analyze research: ${error.message}`);
+  }
+};
+
+export const getReport = async (sessionId: string, userId: string) => {
+  try {
+    const agentRun = await prisma.agentRun.findFirst({
+      where: {
+        sessionId: sessionId,
+        session: {
+          userId: userId
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!agentRun) {
+      throw new Error("Research session not found");
+    }
+
+    const output = agentRun.output as any;
+    return {
+      report: output.report || '',
+      metadata: output.metadata || {},
+      status: agentRun.status
+    };
+  } catch (error: any) {
+    console.error("Error in getReport:", error);
+    throw new Error(`Failed to get report: ${error.message}`);
+  }
+};
+
+export const addFeedback = async (sessionId: string, feedback: string, refinementRequest: string, userId: string) => {
+  try {
+    const agentRun = await prisma.agentRun.findFirst({
+      where: {
+        sessionId: sessionId,
+        session: {
+          userId: userId
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!agentRun) {
+      throw new Error("Research session not found");
     }
 
     const output = agentRun.output as any;
     
+    // Refine the research based on feedback using agent
+    const refinedAgentRunId = await researchAgent.refineResearch(agentRun.id, feedback);
+
     return {
-      sessionId,
-      agentRunId: agentRun.id,
-      status: agentRun.status,
-      logs: output?.logs || [],
-      metadata: output?.metadata || {},
-      error: output?.error || null,
-      createdAt: agentRun.createdAt,
-      completedAt: agentRun.status === "completed" ? agentRun.createdAt : null
+      message: "Research refined successfully",
+      agentRunId: refinedAgentRunId,
+      status: "completed"
     };
   } catch (error: any) {
-    throw new Error(`Failed to get agent logs: ${error.message}`);
+    console.error("Error in addFeedback:", error);
+    throw new Error(`Failed to add feedback: ${error.message}`);
   }
 };

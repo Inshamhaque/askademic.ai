@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-export default function SignUp() {
+export default function SignUpPage() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -20,8 +20,16 @@ export default function SignUp() {
     setLoading(true);
     setError('');
 
+    // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+
+    // Validate password length
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters long');
       setLoading(false);
       return;
     }
@@ -33,15 +41,21 @@ export default function SignUp() {
         body: JSON.stringify({
           name: formData.name,
           email: formData.email,
-          password: formData.password
+          password: formData.password,
         }),
       });
 
+      const data = await response.json();
+
       if (response.ok) {
-        router.push('/signin?message=Account created successfully!');
+        // Store session token and user data
+        localStorage.setItem('sessionToken', data.sessionToken);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        
+        // Redirect to chat page
+        router.push('/chat');
       } else {
-        const data = await response.json();
-        setError(data.error || 'Signup failed');
+        setError(data.error || 'Sign up failed');
       }
     } catch (err) {
       setError('Network error. Please try again.');

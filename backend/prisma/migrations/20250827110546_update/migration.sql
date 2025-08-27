@@ -1,0 +1,3 @@
+-- No-op migration to avoid duplicate schema creation.
+-- The initial schema is created in 20250827105523_add_session_token.
+-- This migration intentionally does nothing.
