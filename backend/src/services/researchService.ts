@@ -1,12 +1,29 @@
-import { PrismaClient } from "../../dist/generated/prisma/index.js";
+import { prisma } from "../lib/db.js";
 import researchAgent from "../agents/researchAgent.js";
 import crypto from "crypto";
 
-const prisma = new PrismaClient();
+export const listUserSessions = async (userId: string) => {
+  const sessions = await prisma.session.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      agentRuns: {
+        orderBy: { createdAt: 'desc' },
+        take: 1
+      }
+    }
+  });
+      return sessions.map(s => ({
+      id: s.id,
+      query: s.query || 'Untitled Research',
+      depth: s.depth || 'deep',
+      createdAt: s.createdAt,
+      latestStatus: s.status || (s.agentRuns[0]?.status ?? 'pending')
+    }));
+};
 
 export const initiateResearch = async (query: string, depth: string, userId: string) => {
   try {
-    // Find user
     const user = await prisma.user.findUnique({
       where: { id: userId }
     });
@@ -15,17 +32,18 @@ export const initiateResearch = async (query: string, depth: string, userId: str
       throw new Error("User not found");
     }
 
-    // Create session for this research with token + expiry
     const sessionToken = crypto.randomBytes(32).toString("hex");
     const session = await prisma.session.create({
       data: {
         userId: userId,
         token: sessionToken,
+        query: query,
+        depth: depth,
+        status: "pending",
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
       }
     });
 
-    // Execute research with the agent
     const agentRunId = await researchAgent.executeResearch(session.id, {
       query,
       depth: depth as 'quick' | 'deep' | 'comprehensive'
@@ -192,9 +210,6 @@ export const addFeedback = async (sessionId: string, feedback: string, refinemen
       throw new Error("Research session not found");
     }
 
-    const output = agentRun.output as any;
-    
-    // Refine the research based on feedback using agent
     const refinedAgentRunId = await researchAgent.refineResearch(agentRun.id, feedback);
 
     return {

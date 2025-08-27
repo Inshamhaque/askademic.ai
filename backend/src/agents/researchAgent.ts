@@ -335,6 +335,11 @@ class ResearchAgent {
    */
   private async generateReport(query: string, analysis: ResearchAnalysis, format: string, agentRunId: string): Promise<string> {
     try {
+      const safeSummary = analysis?.summary ?? "";
+      const findingsArr = Array.isArray(analysis?.key_findings) ? analysis.key_findings : [];
+      const recsArr = Array.isArray(analysis?.recommendations) ? analysis.recommendations : [];
+      const confidenceNum = typeof analysis?.confidence_score === 'number' ? analysis.confidence_score : 0.7;
+
       const reportPrompt = PromptTemplate.fromTemplate(`
         Create a ${format} research report for the query: "{query}"
 
@@ -354,10 +359,10 @@ class ResearchAgent {
       const chain = new LLMChain({ llm: this.llm, prompt: reportPrompt });
       const result = await chain.call({
         query,
-        summary: analysis.summary,
-        findings: analysis.key_findings.join('\n• '),
-        recommendations: analysis.recommendations.join('\n• '),
-        confidence: `${(analysis.confidence_score * 100).toFixed(1)}%`
+        summary: safeSummary,
+        findings: findingsArr.join('\n• '),
+        recommendations: recsArr.join('\n• '),
+        confidence: `${(confidenceNum * 100).toFixed(1)}%`
       });
 
       const report = result.text.trim();

@@ -30,6 +30,9 @@ model Session {
   token       String    @unique
   userId      String
   user        User      @relation(fields: [userId], references: [id])
+  query       String?   // Research query
+  depth       String?   // Research depth (quick, deep, comprehensive)
+  status      String    @default("pending") // Status of the research
   expiresAt   DateTime
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

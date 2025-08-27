@@ -1,8 +1,6 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { PrismaClient } from '../../dist/generated/prisma/index.js';
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/db.js';
 
 interface SignupData {
   name: string;

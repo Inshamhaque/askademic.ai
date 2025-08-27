@@ -1,19 +1,20 @@
 import Link from 'next/link';
+import Logo from './components/Logo';
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       {/* Navigation */}
-      <nav className="bg-gray-900 border-b border-gray-800">
+      <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-indigo-500">Askademic</h1>
+              <Logo />
             </div>
             <div className="flex items-center space-x-4">
               <Link
                 href="/signin"
-                className="text-gray-300 hover:text-indigo-400 px-3 py-2 rounded-md text-sm font-medium transition"
+                className="text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 px-3 py-2 rounded-md text-sm font-medium transition"
               >
                 Sign In
               </Link>
@@ -29,7 +30,7 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <div className="relative bg-gradient-to-r from-indigo-700 via-purple-700 to-indigo-900">
+      <div className="relative bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-800 dark:from-indigo-700 dark:via-purple-700 dark:to-indigo-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
           <div className="text-center">
             <h1 className="text-4xl tracking-tight font-extrabold text-white sm:text-5xl md:text-6xl">
@@ -58,16 +59,16 @@ export default function LandingPage() {
       </div>
 
       {/* Features Section */}
-      <div className="py-16 bg-gray-900">
+      <div className="py-16 bg-gray-50 dark:bg-gray-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="lg:text-center">
-            <h2 className="text-base text-indigo-400 font-semibold tracking-wide uppercase">
+            <h2 className="text-base text-indigo-600 dark:text-indigo-400 font-semibold tracking-wide uppercase">
               Features
             </h2>
-            <p className="mt-2 text-3xl font-extrabold text-white sm:text-4xl">
+            <p className="mt-2 text-3xl font-extrabold text-gray-900 dark:text-white sm:text-4xl">
               Everything you need for academic research
             </p>
-            <p className="mt-4 max-w-2xl text-lg text-gray-400 lg:mx-auto">
+            <p className="mt-4 max-w-2xl text-lg text-gray-600 dark:text-gray-400 lg:mx-auto">
               Our AI-powered platform combines advanced search, intelligent analysis, and comprehensive reporting to revolutionize your research workflow.
             </p>
           </div>
@@ -134,8 +135,8 @@ export default function LandingPage() {
                     {feature.icon}
                   </svg>
                 </div>
-                <p className="text-lg font-medium text-white">{feature.title}</p>
-                <p className="mt-2 text-base text-gray-400">{feature.desc}</p>
+                <p className="text-lg font-medium text-gray-900 dark:text-white">{feature.title}</p>
+                <p className="mt-2 text-base text-gray-600 dark:text-gray-400">{feature.desc}</p>
               </div>
             ))}
           </div>
@@ -143,7 +144,7 @@ export default function LandingPage() {
       </div>
 
       {/* CTA Section */}
-      <div className="bg-gradient-to-r from-indigo-800 to-purple-800">
+      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-800 dark:to-purple-800">
         <div className="max-w-2xl mx-auto text-center py-16 px-6">
           <h2 className="text-3xl font-extrabold text-white sm:text-4xl">
             <span className="block">Ready to start your research?</span>
@@ -162,8 +163,8 @@ export default function LandingPage() {
       </div>
 
       {/* Footer */}
-      <footer className="bg-gray-900 border-t border-gray-800">
-        <div className="max-w-7xl mx-auto py-8 px-4 flex flex-col md:flex-row justify-between items-center text-gray-400">
+      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+        <div className="max-w-7xl mx-auto py-8 px-4 flex flex-col md:flex-row justify-between items-center text-gray-600 dark:text-gray-400">
           <p>&copy; 2024 Askademic. All rights reserved.</p>
           <p className="mt-2 md:mt-0">AI-powered academic research platform</p>
         </div>

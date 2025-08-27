@@ -22,6 +22,18 @@ export const initiateResearch = async (req: Request, res: Response) => {
   }
 };
 
+export const listUserSessions = async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId;
+    if (!userId) return res.status(401).json({ error: "User not authenticated" });
+    const sessions = await researchService.listUserSessions(userId);
+    res.json({ sessions });
+  } catch (error: any) {
+    console.error("Error listing sessions:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const getResearchStatus = async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
