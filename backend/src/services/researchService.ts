@@ -1,6 +1,15 @@
 import { prisma } from "../lib/db.js";
 import researchAgent from "../agents/researchAgent.js";
 import crypto from "crypto";
+import arxivProvider from "../providers/arxiv.js";
+import semanticScholarProvider from "../providers/semanticScholar.js";
+import crossrefProvider from "../providers/crossref.js";
+import pubmedProvider from "../providers/pubmed.js";
+import wikipediaProvider from "../providers/wikipedia.js";
+import { resolveOpenAccessPdf } from "../providers/unpaywall.js";
+import type { NormalizedSource } from "../providers/SourceProvider.js";
+import fs from 'fs';
+import path from 'path';
 
 export const listUserSessions = async (userId: string) => {
   try {
@@ -188,7 +197,7 @@ export const getSources = async (sessionId: string, userId: string) => {
       return Math.max(0, Math.min(1, score));
     };
 
-    const enhanced = rawSources.map((s) => {
+    const enhancedFromAgent = rawSources.map((s) => {
       const content = typeof s.content === 'string' ? s.content : '';
       const sanitized = sanitizeContent(content);
       const summary = s.summary || summarize(sanitized);
@@ -203,13 +212,92 @@ export const getSources = async (sessionId: string, userId: string) => {
       };
     });
 
-    return {
-      sources: enhanced
-    };
+    // Fetch from external providers in parallel (best-effort)
+    const query = session?.query || '';
+    const providers = [arxivProvider, semanticScholarProvider, crossrefProvider, pubmedProvider, wikipediaProvider];
+    const providerResults = await Promise.allSettled(providers.map(p => p.fetch(query, 5)));
+    let extra: NormalizedSource[] = [];
+    for (const pr of providerResults) {
+      if (pr.status === 'fulfilled') {
+        extra = extra.concat(pr.value || []);
+      }
+    }
+
+    // Try to resolve OA PDFs via Unpaywall where DOI is present
+    const contactEmail = process.env.UNPAYWALL_EMAIL || 'hello@askademic.ai';
+    const withPdf = await Promise.all(extra.map(async (s) => {
+      let pdf_url = s.pdf_url;
+      if (!pdf_url && s.doi) {
+        const resolved = await resolveOpenAccessPdf(s.doi, contactEmail);
+        if (resolved) pdf_url = resolved;
+      }
+      return { ...s, pdf_url };
+    }));
+
+    // Normalize provider content via sanitize/summarize and add dynamic relevance
+    const normalizedExtra = withPdf.map((s) => {
+      const sanitized = sanitizeContent(s.content || '');
+      return {
+        title: s.title,
+        url: s.url,
+        content: sanitized,
+        source_type: s.source_type,
+        relevance_score: typeof s.relevance_score === 'number' ? s.relevance_score : computeRelevance(sanitized),
+        pdf_url: s.pdf_url,
+        doi: s.doi,
+        summary: summarize(sanitized)
+      } as any;
+    });
+
+    // Deduplicate by URL/DOI
+    const seen = new Set<string>();
+    const deduped: any[] = [];
+    for (const s of [...enhancedFromAgent, ...normalizedExtra]) {
+      const key = (s.doi || s.url || s.title).toLowerCase();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        deduped.push(s);
+      }
+    }
+
+    return { sources: deduped };
   } catch (error: any) {
     console.error("Error in getSources:", error);
     throw new Error(`Failed to get sources: ${error.message}`);
   }
+};
+
+export const storeUserDocument = async (sessionId: string, userId: string, filename: string, contentBase64: string) => {
+  const session = await prisma.session.findFirst({ where: { id: sessionId, userId } });
+  if (!session) throw new Error('Session not found');
+
+  const uploadsDir = path.join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+  const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const key = `${sessionId}_${Date.now()}_${safeName}`;
+  const filePath = path.join(uploadsDir, key);
+
+  const buffer = Buffer.from(contentBase64, 'base64');
+  fs.writeFileSync(filePath, buffer);
+
+  // Attach to latest agentRun output as an additional source-like entry (MVP persistence)
+  const agentRun = await prisma.agentRun.findFirst({ where: { sessionId }, orderBy: { createdAt: 'desc' } });
+  if (agentRun) {
+    const output = (agentRun.output as any) || {};
+    const sources: any[] = output.sources || [];
+    sources.unshift({
+      title: `User document: ${filename}`,
+      url: `file://${key}`,
+      content: 'User-uploaded document (PDF) included in sources.',
+      source_type: 'user_upload',
+      relevance_score: 1.0,
+      summary: 'User-provided document to be considered in the analysis.'
+    });
+    await prisma.agentRun.update({ where: { id: agentRun.id }, data: { output: { ...output, sources } } });
+  }
+
+  return { key, filename };
 };
 
 export const analyzeResearch = async (sessionId: string, analysisType: string, userId: string) => {

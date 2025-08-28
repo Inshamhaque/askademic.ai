@@ -13,9 +13,11 @@
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.2",
     "next": "15.5.2",
+    "pdf-lib": "^1.17.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-markdown": "^10.1.0",
+    "react-toastify": "^11.0.5",
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {

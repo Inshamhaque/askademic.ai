@@ -85,6 +85,23 @@ export const getSources = async (req: Request, res: Response) => {
   }
 };
 
+export const uploadUserDocument = async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params;
+    const userId = req.userId;
+    const { filename, contentBase64 } = req.body as { filename: string; contentBase64: string };
+
+    if (!userId) return res.status(401).json({ error: "User not authenticated" });
+    if (!sessionId || !filename || !contentBase64) return res.status(400).json({ error: 'sessionId, filename and contentBase64 are required' });
+
+    const result = await researchService.storeUserDocument(sessionId, userId, filename, contentBase64);
+    res.status(201).json(result);
+  } catch (error: any) {
+    console.error('Error uploading user document:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const analyzeResearch = async (req: Request, res: Response) => {
   try {
     const { sessionId, analysisType } = req.body;

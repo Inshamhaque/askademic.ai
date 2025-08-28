@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Logo from '../components/Logo';
 import ProfileDropdown from '../components/ProfileDropdown';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 interface SessionItem {
   id: string;
@@ -87,6 +89,22 @@ export default function ChatStarterPage() {
     setLoading(true);
     setError('');
 
+    // Show toast
+    toast.info('Check back after 5 minutes for your research report!');
+
+    // Request browser notification permission and show notification if granted
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        new Notification('Askademic.ai', { body: 'Check back after 5 minutes for your research report!' });
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            new Notification('Askademic.ai', { body: 'Check back after 5 minutes for your research report!' });
+          }
+        });
+      }
+    }
+
     try {
       const response = await fetch('http://localhost:8080/research/initiate', {
         method: 'POST',
@@ -137,114 +155,117 @@ export default function ChatStarterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900">
-      <header className="bg-gray-800 shadow-sm border-b border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Logo />
-            {user && <ProfileDropdown user={user} />}
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700">
-              <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-white">Research Sessions</h2>
-                <span className="text-xs text-gray-400">+ New</span>
-              </div>
-              <div className="max-h-96 overflow-y-auto">
-                {loadingSessions ? (
-                  <div className="p-4 text-center text-gray-400 text-sm">Loading sessions...</div>
-                ) : sessions.length === 0 ? (
-                  <div className="p-4 text-center text-gray-400 text-sm">No sessions yet</div>
-                ) : (
-                  <div className="divide-y divide-gray-700">
-                    {sessions.map((session) => (
-                      <Link
-                        key={session.id}
-                        href={`/chat/${session.id}`}
-                        className="block p-4 hover:bg-gray-700 transition"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-white truncate">
-                              {session.query}
-                            </p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <p className="text-xs text-gray-400">
-                                {formatDate(session.createdAt)}
-                              </p>
-                              <span className="text-xs px-2 py-1 rounded-full bg-gray-700 text-gray-300 capitalize">
-                                {session.depth}
-                              </span>
-                            </div>
-                          </div>
-                          <div className={`ml-2 w-2 h-2 rounded-full ${getStatusColor(session.latestStatus)}`}></div>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
+    <div>
+      <ToastContainer position="top-center" autoClose={5000} />
+      <div className="min-h-screen bg-gray-900">
+        <header className="bg-gray-800 shadow-sm border-b border-gray-700">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <Logo />
+              {user && <ProfileDropdown user={user} />}
             </div>
           </div>
+        </header>
 
-          {/* Main Content */}
-          <div className="lg:col-span-3">
-            <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-6">
-              <h2 className="text-xl font-semibold text-white mb-2">Start a new research session</h2>
-              <p className="text-sm text-gray-400 mb-6">
-                Enter your research question. You'll be redirected to your session page.
-              </p>
-
-              {error && (
-                <div className="bg-red-900/20 border border-red-800 text-red-400 px-4 py-2 rounded mb-4 text-sm">
-                  {error}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            {/* Sidebar */}
+            <div className="lg:col-span-1">
+              <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700">
+                <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-white">Research Sessions</h2>
+                  <span className="text-xs text-gray-400">+ New</span>
                 </div>
-              )}
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Research Query
-                  </label>
-                  <textarea
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Enter your research question..."
-                    className="w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm bg-gray-700 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    rows={4}
-                    disabled={loading}
-                  />
+                <div className="max-h-96 overflow-y-auto">
+                  {loadingSessions ? (
+                    <div className="p-4 text-center text-gray-400 text-sm">Loading sessions...</div>
+                  ) : sessions.length === 0 ? (
+                    <div className="p-4 text-center text-gray-400 text-sm">No sessions yet</div>
+                  ) : (
+                    <div className="divide-y divide-gray-700">
+                      {sessions.map((session) => (
+                        <Link
+                          key={session.id}
+                          href={`/chat/${session.id}`}
+                          className="block p-4 hover:bg-gray-700 transition"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-white truncate">
+                                {session.query}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <p className="text-xs text-gray-400">
+                                  {formatDate(session.createdAt)}
+                                </p>
+                                <span className="text-xs px-2 py-1 rounded-full bg-gray-700 text-gray-300 capitalize">
+                                  {session.depth}
+                                </span>
+                              </div>
+                            </div>
+                            <div className={`ml-2 w-2 h-2 rounded-full ${getStatusColor(session.latestStatus)}`}></div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                 </div>
+              </div>
+            </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Research Depth
-                  </label>
-                  <select
-                    value={depth}
-                    onChange={(e) => setDepth(e.target.value as 'quick' | 'deep' | 'comprehensive')}
-                    className="w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm bg-gray-700 text-gray-100 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    disabled={loading}
+            {/* Main Content */}
+            <div className="lg:col-span-3">
+              <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-6">
+                <h2 className="text-xl font-semibold text-white mb-2">Start a new research session</h2>
+                <p className="text-sm text-gray-400 mb-6">
+                  Enter your research question. You'll be redirected to your session page.
+                </p>
+
+                {error && (
+                  <div className="bg-red-900/20 border border-red-800 text-red-400 px-4 py-2 rounded mb-4 text-sm">
+                    {error}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Research Query
+                    </label>
+                    <textarea
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Enter your research question..."
+                      className="w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm bg-gray-700 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      rows={4}
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Research Depth
+                    </label>
+                    <select
+                      value={depth}
+                      onChange={(e) => setDepth(e.target.value as 'quick' | 'deep' | 'comprehensive')}
+                      className="w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm bg-gray-700 text-gray-100 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      disabled={loading}
+                    >
+                      <option value="quick">Quick (Basic analysis)</option>
+                      <option value="deep">Deep (Comprehensive analysis)</option>
+                      <option value="comprehensive">Comprehensive (In-depth research)</option>
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={startResearch}
+                    disabled={loading || !query.trim()}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 text-white font-medium py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:cursor-not-allowed"
                   >
-                    <option value="quick">Quick (Basic analysis)</option>
-                    <option value="deep">Deep (Comprehensive analysis)</option>
-                    <option value="comprehensive">Comprehensive (In-depth research)</option>
-                  </select>
+                    {loading ? 'Creating session…' : 'Create session'}
+                  </button>
                 </div>
-
-                <button
-                  onClick={startResearch}
-                  disabled={loading || !query.trim()}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 text-white font-medium py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Creating session…' : 'Create session'}
-                </button>
               </div>
             </div>
           </div>

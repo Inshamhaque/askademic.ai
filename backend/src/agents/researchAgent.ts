@@ -380,14 +380,14 @@ class ResearchAgent {
           description: 'concise executive summary style'
         },
         deep: {
-          wordCount: '800-1200',
+          wordCount: '2000-3000',
           sections: ['Executive Summary', 'Background', 'Key Findings', 'Analysis', 'Recommendations', 'Conclusion'],
-          description: 'comprehensive analysis with detailed sections'
+          description: 'comprehensive analysis with detailed sections, at least 5-6 full A4 pages, with in-depth discussion and examples'
         },
         comprehensive: {
-          wordCount: '1500-2000',
+          wordCount: '3500-5000',
           sections: ['Executive Summary', 'Background', 'Methodology', 'Key Findings', 'Detailed Analysis', 'Implications', 'Recommendations', 'Conclusion', 'Future Research'],
-          description: 'academic paper style with extensive analysis and multiple sections'
+          description: 'academic paper style with extensive analysis and multiple sections, at least 8-10 full A4 pages, with detailed methodology, implications, and future research directions'
         }
       };
 
@@ -402,13 +402,13 @@ class ResearchAgent {
         Confidence Level: {confidence}
 
         Requirements:
-        - Target length: ${config.wordCount} words
+        - Target length: ${config.wordCount} words (do not under-deliver; ensure the report is at least this long)
+        - The report must be long enough to fill at least ${depth === 'deep' ? '5-6' : depth === 'comprehensive' ? '8-10' : '1-2'} full A4 pages when rendered as a PDF
         - Include these sections: ${config.sections.join(', ')}
         - Use proper markdown formatting with headers (##), bullet points, and emphasis
         - Make it suitable for ${depth} level research
-        - Include specific details and examples where appropriate
+        - Include specific details, data, and examples where appropriate
         - Ensure professional academic tone
-
         ${depth === 'comprehensive' ? '- Include methodology section explaining the research approach' : ''}
         ${depth === 'comprehensive' ? '- Add implications section discussing broader impact' : ''}
         ${depth === 'comprehensive' ? '- Include future research directions' : ''}

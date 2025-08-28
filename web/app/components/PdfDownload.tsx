@@ -1,8 +1,7 @@
 'use client';
 
-import { useRef } from 'react';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import { useRef, useState } from 'react';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -39,108 +38,306 @@ export default function PdfDownload({
     });
   };
 
+  // Helper to clean text for PDF-lib (remove problematic characters)
+  const cleanTextForPdf = (text: string): string => {
+    return text
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove control characters
+      .replace(/\s+/g, ' ')  // Normalize multiple spaces
+      .trim();
+  };
+
+  // Helper to convert markdown to structured content for PDF
+  const parseMarkdownForPdf = (markdown: string) => {
+    const lines = markdown.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    const content = [];
+    let currentParagraph = '';
+    
+    for (const line of lines) {
+      if (line.startsWith('###')) {
+        if (currentParagraph) {
+          content.push({ type: 'paragraph', text: currentParagraph.trim() });
+          currentParagraph = '';
+        }
+        content.push({ type: 'h3', text: line.replace(/^###\s*/, '') });
+      } else if (line.startsWith('##')) {
+        if (currentParagraph) {
+          content.push({ type: 'paragraph', text: currentParagraph.trim() });
+          currentParagraph = '';
+        }
+        content.push({ type: 'h2', text: line.replace(/^##\s*/, '') });
+      } else if (line.startsWith('#')) {
+        if (currentParagraph) {
+          content.push({ type: 'paragraph', text: currentParagraph.trim() });
+          currentParagraph = '';
+        }
+        content.push({ type: 'h1', text: line.replace(/^#\s*/, '') });
+      } else if (line.startsWith('- ') || line.startsWith('* ') || line.startsWith('+ ')) {
+        if (currentParagraph) {
+          content.push({ type: 'paragraph', text: currentParagraph.trim() });
+          currentParagraph = '';
+        }
+        content.push({ type: 'bullet', text: '• ' + line.replace(/^[-*+]\s*/, '') });
+      } else if (line.match(/^\d+\.\s/)) {
+        if (currentParagraph) {
+          content.push({ type: 'paragraph', text: currentParagraph.trim() });
+          currentParagraph = '';
+        }
+        content.push({ type: 'bullet', text: '• ' + line.replace(/^\d+\.\s*/, '') });
+      } else if (line.startsWith('---') || line === '') {
+        if (currentParagraph) {
+          content.push({ type: 'paragraph', text: currentParagraph.trim() });
+          currentParagraph = '';
+        }
+      } else {
+        // Regular text line - add to current paragraph
+        currentParagraph += (currentParagraph ? ' ' : '') + line;
+      }
+    }
+    
+    // Add final paragraph if exists
+    if (currentParagraph) {
+      content.push({ type: 'paragraph', text: currentParagraph.trim() });
+    }
+    
+    return content;
+  };
+
   const generatePDF = async () => {
-    if (!reportRef.current) return;
-
     onDownloadStart?.();
-
     try {
-      // Make the div visible temporarily for rendering
-      reportRef.current.style.display = 'block';
-      reportRef.current.style.position = 'absolute';
-      reportRef.current.style.left = '-9999px';
-      reportRef.current.style.top = '0';
-      reportRef.current.style.width = '800px';
+      // Create a new PDF document
+      const pdfDoc = await PDFDocument.create();
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      const pageMargin = 50;
+      const pageWidth = 595.28; // A4 width in points
+      const pageHeight = 841.89; // A4 height in points
+      const fontSize = 12;
+      const lineHeight = 18;
+      let y = pageHeight - pageMargin;
 
-      // Wait a bit for the content to render
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Helper to add a new page and reset y
+      const addPage = () => {
+        const page = pdfDoc.addPage([pageWidth, pageHeight]);
+        y = pageHeight - pageMargin;
+        return page;
+      };
+      let page = addPage();
 
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 1.5, // Reduced scale for better performance
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        width: 800,
-        height: reportRef.current.scrollHeight,
-        logging: false,
-        onclone: (clonedDoc) => {
-          // Ensure the cloned element has proper dimensions
-          const clonedElement = clonedDoc.querySelector('[data-pdf-content]') as HTMLElement;
-          if (clonedElement) {
-            clonedElement.style.width = '800px';
-            clonedElement.style.height = 'auto';
-          }
-        }
+      // Title
+      const titleText = 'Research Report';
+      page.drawText(titleText, {
+        x: pageWidth / 2 - fontBold.widthOfTextAtSize(titleText, 20) / 2,
+        y: y,
+        size: 20,
+        font: fontBold,
+        color: rgb(0, 0, 0),
       });
+      y -= 2 * lineHeight;
 
-      // Hide the div again
-      reportRef.current.style.display = 'none';
+      // Metadata
+      const meta = [
+        `Query: ${cleanTextForPdf(query)}`,
+        `Depth: ${depth.charAt(0).toUpperCase() + depth.slice(1)}`,
+        `Status: ${status}`,
+        `Sources: ${sourcesCount}`,
+        `Generated: ${formatDate()}`
+      ];
+      meta.forEach((m) => {
+        page.drawText(m, { x: pageMargin, y: y, size: fontSize, font, color: rgb(0, 0, 0) });
+        y -= lineHeight;
+      });
+      y -= lineHeight / 2;
 
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      
-      const imgWidth = 210; // A4 width in mm
-      const pageHeight = 297; // A4 height in mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
+      // Draw a line
+      page.drawLine({ start: { x: pageMargin, y }, end: { x: pageWidth - pageMargin, y }, thickness: 1, color: rgb(0.7, 0.7, 0.7) });
+      y -= lineHeight * 1.5;
 
-      let position = 0;
-
-      // Add title page
-      pdf.setFillColor(255, 255, 255);
-      pdf.rect(0, 0, 210, 297, 'F');
+      // Parse and render the markdown content
+      const parsedContent = parseMarkdownForPdf(report);
       
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFontSize(20); // Reduced font size
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Research Report', 105, 50, { align: 'center' });
-      
-      pdf.setFontSize(14); // Reduced font size
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(`Query: ${query}`, 105, 70, { align: 'center' });
-      
-      pdf.setFontSize(10); // Reduced font size
-      pdf.text(`Depth: ${depth.charAt(0).toUpperCase() + depth.slice(1)}`, 105, 85, { align: 'center' });
-      pdf.text(`Status: ${status}`, 105, 95, { align: 'center' });
-      pdf.text(`Sources: ${sourcesCount}`, 105, 105, { align: 'center' });
-      pdf.text(`Generated: ${formatDate()}`, 105, 115, { align: 'center' });
-      
-      pdf.setFontSize(8); // Reduced font size
-      pdf.text('Askademic.ai', 105, 280, { align: 'center' });
-
-      // Add content pages - handle multiple pages properly
-      if (heightLeft > 0) {
-        pdf.addPage();
+      for (const item of parsedContent) {
+        let currentFont = font;
+        let currentSize = fontSize;
+        let indentX = pageMargin;
         
-        while (heightLeft >= pageHeight) {
-          position = heightLeft - pageHeight;
-          pdf.addImage(imgData, 'PNG', 0, -position, imgWidth, imgHeight);
-          heightLeft -= pageHeight;
-          
-          if (heightLeft >= pageHeight) {
-            pdf.addPage();
-          }
+        // Determine styling based on content type
+        switch (item.type) {
+          case 'h1':
+            currentFont = fontBold;
+            currentSize = 16;
+            y -= lineHeight / 2; // Extra space before h1
+            break;
+          case 'h2':
+            currentFont = fontBold;
+            currentSize = 14;
+            y -= lineHeight / 3; // Extra space before h2
+            break;
+          case 'h3':
+            currentFont = fontBold;
+            currentSize = 13;
+            break;
+          case 'bullet':
+            indentX = pageMargin + 20;
+            break;
         }
         
-        if (heightLeft > 0) {
-          pdf.addImage(imgData, 'PNG', 0, -position, imgWidth, imgHeight);
+        const cleanText = cleanTextForPdf(item.text);
+        if (!cleanText) continue;
+        
+        // Remove any remaining markdown formatting
+        const finalText = cleanText
+          .replace(/\*\*(.+?)\*\*/g, '$1') // Bold
+          .replace(/\*(.+?)\*/g, '$1')     // Italic
+          .replace(/`(.+?)`/g, '$1')       // Code
+          .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1'); // Links
+        
+        const lines = splitTextToLines(finalText, currentFont, currentSize, pageWidth - indentX - pageMargin);
+        
+        for (const line of lines) {
+          if (y < pageMargin + lineHeight * 2) {
+            page = addPage();
+          }
+          page.drawText(line, { 
+            x: indentX, 
+            y, 
+            size: currentSize, 
+            font: currentFont, 
+            color: rgb(0, 0, 0) 
+          });
+          y -= lineHeight;
+        }
+        
+        // Add extra space after headers
+        if (item.type.startsWith('h')) {
+          y -= lineHeight / 2;
         }
       }
 
-      // Generate filename
-      const filename = `research-report-${query.slice(0, 30).replace(/[^a-zA-Z0-9]/g, '-')}-${Date.now()}.pdf`;
+      // References section
+      if (sources.length > 0) {
+        y -= lineHeight;
+        if (y < pageMargin + 5 * lineHeight) page = addPage();
+        
+        page.drawText('References', { 
+          x: pageMargin, 
+          y, 
+          size: 14, 
+          font: fontBold, 
+          color: rgb(0, 0, 0) 
+        });
+        y -= 1.5 * lineHeight;
+        
+        sources.forEach((source, idx) => {
+          const refText = `${idx + 1}. ${cleanTextForPdf(source.title)}`;
+          const urlText = cleanTextForPdf(source.url);
+          
+          const refLines = splitTextToLines(refText, font, fontSize, pageWidth - 2 * pageMargin);
+          for (const line of refLines) {
+            if (y < pageMargin + lineHeight * 2) page = addPage();
+            page.drawText(line, { x: pageMargin, y, size: fontSize, font, color: rgb(0, 0, 0) });
+            y -= lineHeight;
+          }
+          
+          const urlLines = splitTextToLines(urlText, font, 10, pageWidth - 2 * pageMargin);
+          for (const line of urlLines) {
+            if (y < pageMargin + lineHeight * 2) page = addPage();
+            page.drawText(line, { x: pageMargin + 10, y, size: 10, font, color: rgb(0, 0.4, 0.8) });
+            y -= lineHeight * 0.8;
+          }
+          
+          y -= lineHeight / 2;
+        });
+      }
+
+      // Footer
+      const footerY = 30;
+      const pageCount = pdfDoc.getPageCount();
+      for (let i = 0; i < pageCount; i++) {
+        const currentPage = pdfDoc.getPage(i);
+        currentPage.drawText(`Generated by Askademic.ai - Page ${i + 1} of ${pageCount}`, {
+          x: pageMargin,
+          y: footerY,
+          size: 9,
+          font,
+          color: rgb(0.4, 0.4, 0.4),
+        });
+      }
+
+      // Save PDF
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const cleanQuery = cleanTextForPdf(query.slice(0, 30)).replace(/[^a-zA-Z0-9]/g, '-');
+      const filename = `research-report-${cleanQuery}-${Date.now()}.pdf`;
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
       
-      pdf.save(filename);
       onDownloadComplete?.();
     } catch (error) {
       console.error('Error generating PDF:', error);
-      // Make sure to hide the div even if there's an error
-      if (reportRef.current) {
-        reportRef.current.style.display = 'none';
-      }
       onDownloadComplete?.();
     }
   };
+
+  // Helper to split text into lines for PDF width
+  function splitTextToLines(text: string, font: any, fontSize: number, maxWidth: number): string[] {
+    if (!text) return [];
+    
+    const words = text.split(' ').filter(word => word.length > 0);
+    const lines: string[] = [];
+    let currentLine = '';
+    
+    for (const word of words) {
+      const testLine = currentLine ? currentLine + ' ' + word : word;
+      try {
+        const width = font.widthOfTextAtSize(testLine, fontSize);
+        if (width > maxWidth && currentLine) {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      } catch (error) {
+        console.warn('Skipping word due to encoding error:', word);
+        continue;
+      }
+    }
+    if (currentLine) lines.push(currentLine);
+    return lines;
+  }
+
+  // Add citation download helpers with types
+  interface Source {
+    title: string;
+    url: string;
+    content: string;
+  }
+  function formatBibTeX(sources: Source[]): string {
+    return sources.map((s, i) => `@article{ref${i+1},\n  title={${s.title}},\n  url={${s.url}},\n  note={${s.content?.slice(0, 100) || ''}}\n}`).join('\n\n');
+  }
+  function formatEndNote(sources: Source[]): string {
+    return sources.map((s, i) => `%0 Journal Article\n%T ${s.title}\n%U ${s.url}\n%N ${s.content?.slice(0, 100) || ''}\n`).join('\n\n');
+  }
+  function formatPlainText(sources: Source[]): string {
+    return sources.map((s, i) => `${i+1}. ${s.title} - ${s.url}`).join('\n');
+  }
+  function downloadTextFile(text: string, filename: string) {
+    const blob = new Blob([text], { type: 'text/plain' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  // Add state for citation dropdown
+  const [showCitationDropdown, setShowCitationDropdown] = useState(false);
 
   return (
     <div>
@@ -162,24 +359,24 @@ export default function PdfDownload({
           display: 'none',
           backgroundColor: '#ffffff',
           color: '#000000',
-          padding: '30px', // Reduced padding
+          padding: '30px',
           fontFamily: 'Arial, sans-serif',
           width: '800px',
-          lineHeight: '1.4', // Reduced line height
-          fontSize: '12px' // Reduced base font size
+          lineHeight: '1.4',
+          fontSize: '12px'
         }}
       >
-        <div style={{ marginBottom: '20px' }}> {/* Reduced margin */}
+        <div style={{ marginBottom: '20px' }}>
           <h1 style={{ 
-            fontSize: '20px', // Reduced font size
+            fontSize: '20px',
             fontWeight: 'bold', 
             color: '#000000', 
-            marginBottom: '15px', // Reduced margin
+            marginBottom: '15px',
             textAlign: 'center'
           }}>
             Research Report
           </h1>
-          <div style={{ fontSize: '11px', color: '#333333', marginBottom: '8px' }}> {/* Reduced font and margin */}
+          <div style={{ fontSize: '11px', color: '#333333', marginBottom: '8px' }}>
             <strong>Query:</strong> {query}
           </div>
           <div style={{ fontSize: '11px', color: '#333333', marginBottom: '8px' }}>
@@ -199,8 +396,8 @@ export default function PdfDownload({
         
         <div 
           style={{
-            fontSize: '12px', // Reduced font size
-            lineHeight: '1.4', // Reduced line height
+            fontSize: '12px',
+            lineHeight: '1.4',
             color: '#000000'
           }}
         >
@@ -209,11 +406,11 @@ export default function PdfDownload({
             components={{
               h1: ({ children }) => (
                 <h1 style={{ 
-                  fontSize: '18px', // Reduced font size
+                  fontSize: '18px',
                   fontWeight: 'bold', 
                   color: '#000000', 
-                  marginTop: '15px', // Reduced margin
-                  marginBottom: '10px', // Reduced margin
+                  marginTop: '15px',
+                  marginBottom: '10px',
                   borderBottom: '2px solid #333',
                   paddingBottom: '3px'
                 }}>
@@ -222,11 +419,11 @@ export default function PdfDownload({
               ),
               h2: ({ children }) => (
                 <h2 style={{ 
-                  fontSize: '16px', // Reduced font size
+                  fontSize: '16px',
                   fontWeight: 'bold', 
                   color: '#000000', 
-                  marginTop: '12px', // Reduced margin
-                  marginBottom: '8px', // Reduced margin
+                  marginTop: '12px',
+                  marginBottom: '8px',
                   borderBottom: '1px solid #ccc',
                   paddingBottom: '2px'
                 }}>
@@ -235,11 +432,11 @@ export default function PdfDownload({
               ),
               h3: ({ children }) => (
                 <h3 style={{ 
-                  fontSize: '14px', // Reduced font size
+                  fontSize: '14px',
                   fontWeight: 'bold', 
                   color: '#000000', 
-                  marginTop: '10px', // Reduced margin
-                  marginBottom: '6px' // Reduced margin
+                  marginTop: '10px',
+                  marginBottom: '6px'
                 }}>
                   {children}
                 </h3>
@@ -247,18 +444,18 @@ export default function PdfDownload({
               p: ({ children }) => (
                 <p style={{ 
                   color: '#000000', 
-                  marginBottom: '8px', // Reduced margin
+                  marginBottom: '8px',
                   textAlign: 'justify',
-                  lineHeight: '1.4', // Reduced line height
-                  fontSize: '12px' // Reduced font size
+                  lineHeight: '1.4',
+                  fontSize: '12px'
                 }}>
                   {children}
                 </p>
               ),
               ul: ({ children }) => (
                 <ul style={{ 
-                  margin: '6px 0', // Reduced margin
-                  paddingLeft: '15px', // Reduced padding
+                  margin: '6px 0',
+                  paddingLeft: '15px',
                   color: '#000000'
                 }}>
                   {children}
@@ -266,8 +463,8 @@ export default function PdfDownload({
               ),
               ol: ({ children }) => (
                 <ol style={{ 
-                  margin: '6px 0', // Reduced margin
-                  paddingLeft: '15px', // Reduced padding
+                  margin: '6px 0',
+                  paddingLeft: '15px',
                   color: '#000000'
                 }}>
                   {children}
@@ -276,9 +473,9 @@ export default function PdfDownload({
               li: ({ children }) => (
                 <li style={{ 
                   color: '#000000', 
-                  marginBottom: '3px', // Reduced margin
-                  lineHeight: '1.3', // Reduced line height
-                  fontSize: '12px' // Reduced font size
+                  marginBottom: '3px',
+                  lineHeight: '1.3',
+                  fontSize: '12px'
                 }}>
                   {children}
                 </li>
@@ -302,10 +499,10 @@ export default function PdfDownload({
               code: ({ children }) => (
                 <code style={{ 
                   backgroundColor: '#f5f5f5', 
-                  padding: '1px 4px', // Reduced padding
-                  borderRadius: '2px', // Reduced border radius
+                  padding: '1px 4px',
+                  borderRadius: '2px',
                   fontFamily: 'monospace',
-                  fontSize: '11px', // Reduced font size
+                  fontSize: '11px',
                   color: '#333333',
                   border: '1px solid #ddd'
                 }}>
@@ -315,28 +512,28 @@ export default function PdfDownload({
               pre: ({ children }) => (
                 <pre style={{ 
                   backgroundColor: '#f5f5f5', 
-                  padding: '10px', // Reduced padding
-                  borderRadius: '3px', // Reduced border radius
+                  padding: '10px',
+                  borderRadius: '3px',
                   overflowX: 'auto',
                   border: '1px solid #ddd',
-                  margin: '8px 0', // Reduced margin
-                  fontSize: '11px', // Reduced font size
-                  lineHeight: '1.3' // Reduced line height
+                  margin: '8px 0',
+                  fontSize: '11px',
+                  lineHeight: '1.3'
                 }}>
                   {children}
                 </pre>
               ),
               blockquote: ({ children }) => (
                 <blockquote style={{ 
-                  borderLeft: '3px solid #333', // Reduced border
-                  paddingLeft: '10px', // Reduced padding
-                  margin: '8px 0', // Reduced margin
+                  borderLeft: '3px solid #333',
+                  paddingLeft: '10px',
+                  margin: '8px 0',
                   fontStyle: 'italic',
                   color: '#555555',
                   backgroundColor: '#f9f9f9',
-                  padding: '6px 10px', // Reduced padding
-                  borderRadius: '0 3px 3px 0', // Reduced border radius
-                  fontSize: '11px' // Reduced font size
+                  padding: '6px 10px',
+                  borderRadius: '0 3px 3px 0',
+                  fontSize: '11px'
                 }}>
                   {children}
                 </blockquote>
@@ -347,7 +544,7 @@ export default function PdfDownload({
                   style={{ 
                     color: '#0066cc', 
                     textDecoration: 'underline',
-                    fontSize: '11px' // Reduced font size
+                    fontSize: '11px'
                   }}
                   target="_blank" 
                   rel="noopener noreferrer"
@@ -358,14 +555,14 @@ export default function PdfDownload({
               table: ({ children }) => (
                 <div style={{ 
                   overflowX: 'auto', 
-                  margin: '8px 0', // Reduced margin
+                  margin: '8px 0',
                   border: '1px solid #ddd',
-                  borderRadius: '3px' // Reduced border radius
+                  borderRadius: '3px'
                 }}>
                   <table style={{ 
                     width: '100%', 
                     borderCollapse: 'collapse',
-                    fontSize: '11px' // Reduced font size
+                    fontSize: '11px'
                   }}>
                     {children}
                   </table>
@@ -374,12 +571,12 @@ export default function PdfDownload({
               th: ({ children }) => (
                 <th style={{ 
                   border: '1px solid #ddd', 
-                  padding: '4px 6px', // Reduced padding
+                  padding: '4px 6px',
                   textAlign: 'left', 
                   fontWeight: 'bold',
                   backgroundColor: '#f5f5f5',
                   color: '#000000',
-                  fontSize: '11px' // Reduced font size
+                  fontSize: '11px'
                 }}>
                   {children}
                 </th>
@@ -387,9 +584,9 @@ export default function PdfDownload({
               td: ({ children }) => (
                 <td style={{ 
                   border: '1px solid #ddd', 
-                  padding: '4px 6px', // Reduced padding
+                  padding: '4px 6px',
                   color: '#000000',
-                  fontSize: '11px' // Reduced font size
+                  fontSize: '11px'
                 }}>
                   {children}
                 </td>
@@ -402,17 +599,26 @@ export default function PdfDownload({
 
         {/* References Section */}
         {sources.length > 0 && (
-          <div style={{ marginTop: '25px' }}>
-            <h2 style={{ 
-              fontSize: '16px', 
-              fontWeight: 'bold', 
-              color: '#000000', 
-              marginBottom: '10px',
-              borderBottom: '1px solid #333',
-              paddingBottom: '3px'
-            }}>
-              References
-            </h2>
+          <div className="flex justify-end mb-2">
+            <div className="relative inline-block text-left">
+              <button
+                className="bg-gray-700 text-gray-100 px-3 py-1 rounded hover:bg-gray-600 text-xs"
+                onClick={() => setShowCitationDropdown((v) => !v)}
+              >
+                Download Citations
+              </button>
+              {showCitationDropdown && (
+                <div className="absolute right-0 mt-2 w-40 bg-white rounded shadow-lg z-10">
+                  <button className="block w-full text-left px-4 py-2 text-sm text-gray-800 hover:bg-gray-100" onClick={() => { downloadTextFile(formatBibTeX(sources), 'citations.bib'); setShowCitationDropdown(false); }}>BibTeX</button>
+                  <button className="block w-full text-left px-4 py-2 text-sm text-gray-800 hover:bg-gray-100" onClick={() => { downloadTextFile(formatEndNote(sources), 'citations.enw'); setShowCitationDropdown(false); }}>EndNote</button>
+                  <button className="block w-full text-left px-4 py-2 text-sm text-gray-800 hover:bg-gray-100" onClick={() => { downloadTextFile(formatPlainText(sources), 'citations.txt'); setShowCitationDropdown(false); }}>Plain Text</button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {sources.length > 0 && (
             <div style={{ fontSize: '11px', lineHeight: '1.3' }}>
               {sources.map((source, index) => (
                 <div key={index} style={{ marginBottom: '8px', paddingLeft: '10px' }}>
@@ -427,17 +633,16 @@ export default function PdfDownload({
                   </div>
                 </div>
               ))}
-            </div>
           </div>
         )}
         
         <div style={{ 
-          marginTop: '25px', // Reduced margin
+          marginTop: '25px',
           textAlign: 'center', 
-          fontSize: '10px', // Reduced font size
+          fontSize: '10px',
           color: '#666666',
           borderTop: '1px solid #ccc',
-          paddingTop: '10px' // Reduced padding
+          paddingTop: '10px'
         }}>
           Generated by Askademic.ai - AI-Powered Academic Research Platform
         </div>

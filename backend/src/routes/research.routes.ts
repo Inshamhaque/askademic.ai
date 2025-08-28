@@ -17,6 +17,7 @@ router.get("/logs/:sessionId", researchController.getAgentLogs);
 
 // Research data endpoints
 router.get("/sources/:sessionId", researchController.getSources);
+router.post("/upload/:sessionId", researchController.uploadUserDocument);
 router.post("/analyze", researchController.analyzeResearch);
 router.get("/report/:sessionId", researchController.getReport);
 

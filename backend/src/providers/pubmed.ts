@@ -24,7 +24,7 @@ const pubmedProvider: SourceProvider = {
         const fetchRes = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&retmode=xml&id=${id}`);
         const xml = await fetchRes.text();
         const m = xml.match(/<AbstractText[^>]*>([\s\S]*?)<\/AbstractText>/i);
-        abstract = m ? m[1].replace(/<[^>]+>/g, ' ').trim() : '';
+        abstract = m && m[1] ? m[1].replace(/<[^>]+>/g, ' ').trim() : '';
       } catch {}
       result.push({
         title,

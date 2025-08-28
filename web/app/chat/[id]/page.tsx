@@ -58,6 +58,16 @@ export default function ChatSessionPage() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const [uploading, setUploading] = useState(false);
+  // Add state for refine modal
+  const [showRefine, setShowRefine] = useState(false);
+  const [refineText, setRefineText] = useState('');
+  const [refineLoading, setRefineLoading] = useState(false);
+  // Add state for feedback
+  const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
+  const [showFeedbackComment, setShowFeedbackComment] = useState(false);
+  const [feedbackComment, setFeedbackComment] = useState('');
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
   const getAuthHeaders = () => {
     const token = typeof window !== "undefined" ? localStorage.getItem("sessionToken") : null;
@@ -199,6 +209,24 @@ export default function ChatSessionPage() {
     return out.replace(/[,:;\-\s]+$/, '') + '…';
   };
 
+  const statusMessages: Record<string, string> = {
+    pending: 'Queued for processing...',
+    collecting: 'Collecting sources...',
+    analyzing: 'Analyzing sources...',
+    generating: 'Generating report...',
+    completed: 'Report ready!',
+    failed: 'Failed to generate report.'
+  };
+  const statusProgress: Record<string, number> = {
+    pending: 10,
+    collecting: 30,
+    analyzing: 60,
+    generating: 90,
+    completed: 100,
+    failed: 0
+  };
+  const ESTIMATED_MINUTES = 5;
+
   return (
     <div className="max-h-screen bg-gray-900">
       <header className="bg-gray-800 shadow-sm border-b border-gray-700">
@@ -243,10 +271,25 @@ export default function ChatSessionPage() {
 
         {/* Main Content */}
         <div className="lg:col-span-3 h-full min-h-0">
-          {loading ? (
-            <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-8 text-center h-full flex items-center justify-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto"></div>
-              <p className="mt-4 text-gray-400 ml-4">Loading research session...</p>
+          {(loading || (status !== 'completed' && status !== 'failed')) ? (
+            <div className="flex-col bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-8 text-center h-full flex items-center justify-center">
+              <div className="w-full max-w-md mx-auto">
+                <div className="w-full bg-gray-700 rounded-full h-3 mb-4">
+                  <div
+                    className="bg-indigo-500 h-3 rounded-full transition-all duration-500"
+                    style={{ width: `${statusProgress[status] || 10}%` }}
+                  ></div>
+                </div>
+                <div className="text-lg text-gray-200 font-medium mb-2">
+                  {statusMessages[status] || 'Working on your research...'}
+                </div>
+                {status !== 'completed' && status !== 'failed' && (
+                  <div className="text-sm text-gray-400 mb-2">
+                    Estimated time left: ~{ESTIMATED_MINUTES} minutes
+                  </div>
+                )}
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500 mx-auto mt-4"></div>
+              </div>
             </div>
           ) : error ? (
             <div className="bg-red-900/20 border border-red-800 text-red-400 px-4 py-3 rounded-lg h-full">
@@ -344,6 +387,40 @@ export default function ChatSessionPage() {
 
                 {activeTab === 'sources' && (
                   <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-white font-semibold">Sources ({sources.length})</h3>
+                        <p className="text-xs text-gray-400">Provider results + your uploaded documents</p>
+                      </div>
+                      <label className="inline-flex items-center gap-2 text-sm bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded cursor-pointer">
+                        <input
+                          type="file"
+                          accept="application/pdf"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file || !sessionId) return;
+                            setUploading(true);
+                            try {
+                              const arrayBuffer = await file.arrayBuffer();
+                              const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+                              await fetch(`http://localhost:8080/research/upload/${sessionId}`, {
+                                method: 'POST',
+                                headers: getAuthHeaders(),
+                                body: JSON.stringify({ filename: file.name, contentBase64: base64 })
+                              });
+                              await fetchAll();
+                            } catch (err) {
+                              console.error('Upload failed:', err);
+                            } finally {
+                              setUploading(false);
+                              e.currentTarget.value = '';
+                            }
+                          }}
+                        />
+                        {uploading ? 'Uploading…' : 'Add PDF'}
+                      </label>
+                    </div>
                     {sources.map((source, index) => {
                       const domain = getDomain(source.url);
                       const summary = (source as any).summary || summarizeText(source.content || '');
