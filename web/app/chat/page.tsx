@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Logo from '../components/Logo';
@@ -60,7 +60,7 @@ export default function ChatStarterPage() {
     };
   };
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     try {
       setLoadingSessions(true);
       const res = await fetch('http://localhost:8080/research/sessions', { 
@@ -79,7 +79,7 @@ export default function ChatStarterPage() {
     } finally {
       setLoadingSessions(false);
     }
-  };
+  }, [router]);
 
   const startResearch = async () => {
     if (!query.trim()) {
@@ -129,8 +129,8 @@ export default function ChatStarterPage() {
       // Reload sessions and redirect
       await loadSessions();
       router.push(`/chat/${sessionId}`);
-    } catch (e: any) {
-      setError(e?.message || 'Network error');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Network error');
       setLoading(false);
     }
   };
@@ -217,9 +217,9 @@ export default function ChatStarterPage() {
             <div className="lg:col-span-3">
               <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-6">
                 <h2 className="text-xl font-semibold text-white mb-2">Start a new research session</h2>
-                <p className="text-sm text-gray-400 mb-6">
-                  Enter your research question. You'll be redirected to your session page.
-                </p>
+                                  <p className="text-sm text-gray-400 mb-6">
+                    Enter your research question. You&apos;ll be redirected to your session page.
+                  </p>
 
                 {error && (
                   <div className="bg-red-900/20 border border-red-800 text-red-400 px-4 py-2 rounded mb-4 text-sm">

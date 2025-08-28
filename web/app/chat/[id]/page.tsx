@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import Logo from "../../components/Logo";
@@ -61,14 +61,9 @@ export default function ChatSessionPage() {
   const [activeTab, setActiveTab] = useState<"results" | "sources" | "logs">("results");
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [currentSession, setCurrentSession] = useState<SessionItem | null>(null);
-  const [pdfLoading, setPdfLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [showFollowUp, setShowFollowUp] = useState(false);
-  const [followUpText, setFollowUpText] = useState('');
-  const [followUpLoading, setFollowUpLoading] = useState(false);
-  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
 
   const getAuthHeaders = () => {
     const token = typeof window !== "undefined" ? localStorage.getItem("sessionToken") : null;
@@ -78,7 +73,7 @@ export default function ChatSessionPage() {
     };
   };
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     try {
       const res = await fetch(`http://localhost:8080/research/sessions`, { headers: getAuthHeaders() });
       if (res.ok) {
@@ -94,9 +89,9 @@ export default function ChatSessionPage() {
         router.push("/signin");
       }
     } catch {}
-  };
+  }, [sessionId, router]);
 
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
     if (!sessionId) return;
     try {
       setLoading(true);
@@ -129,12 +124,12 @@ export default function ChatSessionPage() {
         const l = await logsRes.json();
         setLogs(l.logs || []);
       }
-    } catch (e: any) {
-      setError(e?.message || "Failed to load session");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load session");
     } finally {
       setLoading(false);
     }
-  };
+  }, [sessionId, router]);
 
   useEffect(() => {
     const token = localStorage.getItem("sessionToken");
@@ -154,7 +149,7 @@ export default function ChatSessionPage() {
     }
 
     loadSessions();
-  }, [router]);
+  }, [router, sessionId]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -176,13 +171,15 @@ export default function ChatSessionPage() {
           clearInterval(pollRef.current as NodeJS.Timeout);
           router.push("/signin");
         }
-      } catch (_) {}
+      } catch {
+        // Ignore polling errors
+      }
     }, 2000);
 
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [sessionId, router]);
+  }, [sessionId, router, fetchAll]);
 
   const isActive = (id: string) => id === sessionId;
 
@@ -285,8 +282,8 @@ export default function ChatSessionPage() {
                       status={status}
                       sourcesCount={sources.length}
                       sources={sources}
-                      onDownloadStart={() => setPdfLoading(true)}
-                      onDownloadComplete={() => setPdfLoading(false)}
+                      onDownloadStart={() => {}}
+                      onDownloadComplete={() => {}}
                     />
                   )}
                 </div>
@@ -302,7 +299,7 @@ export default function ChatSessionPage() {
                   ].map(tab => (
                     <button
                       key={tab.id}
-                      onClick={() => setActiveTab(tab.id as any)}
+                      onClick={() => setActiveTab(tab.id as "results" | "sources" | "logs")}
                       className={`py-3 px-1 border-b-2 font-medium text-sm ${
                         activeTab === tab.id
                           ? 'border-indigo-500 text-indigo-400'
@@ -391,7 +388,7 @@ export default function ChatSessionPage() {
                     </div>
                     {sources.map((source, index) => {
                       const domain = getDomain(source.url);
-                      const summary = (source as any).summary || summarizeText(source.content || '');
+                      const summary = (source as { summary?: string }).summary || summarizeText(source.content || '');
                       return (
                         <div key={index} className="rounded-lg border border-gray-700 bg-gray-800/60 hover:bg-gray-800 transition-colors">
                           <div className="p-4">

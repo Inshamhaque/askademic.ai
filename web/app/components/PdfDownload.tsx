@@ -285,7 +285,7 @@ export default function PdfDownload({
   };
 
   // Helper to split text into lines for PDF width
-  function splitTextToLines(text: string, font: any, fontSize: number, maxWidth: number): string[] {
+  function splitTextToLines(text: string, font: { widthOfTextAtSize: (text: string, fontSize: number) => number }, fontSize: number, maxWidth: number): string[] {
     if (!text) return [];
     
     const words = text.split(' ').filter(word => word.length > 0);
@@ -302,7 +302,7 @@ export default function PdfDownload({
         } else {
           currentLine = testLine;
         }
-      } catch (error) {
+      } catch {
         console.warn('Skipping word due to encoding error:', word);
         continue;
       }

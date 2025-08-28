@@ -41,7 +41,7 @@ export default function SignInPage() {
       } else {
         setError(data.error || 'Sign in failed');
       }
-    } catch (err) {
+    } catch {
       setError('Network error. Please try again.');
     } finally {
       setLoading(false);
@@ -105,7 +105,7 @@ export default function SignInPage() {
 
           <div className="text-center">
             <Link href="/signup" className="text-indigo-400 hover:text-indigo-300 text-sm">
-              Don't have an account? Sign up
+              Don&apos;t have an account? Sign up
             </Link>
           </div>
         </form>
