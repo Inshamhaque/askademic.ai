@@ -28,7 +28,9 @@ export default function HomePage() {
           router.push("/chat");
         }} className="bg-indigo-600 hover:bg-indigo-500 px-5 py-2 rounded-lg font-medium transition">
           Go to Chat
-        </button>:<button className="bg-indigo-600 hover:bg-indigo-500 px-5 py-2 rounded-lg font-medium transition">
+        </button>:<button onClick={()=>{
+          router.push("/signup");
+        }} className="bg-indigo-600 hover:bg-indigo-500 hover:cursor-pointer  px-5 py-2 rounded-lg font-medium transition">
           Get Started
         </button>}
       </nav>

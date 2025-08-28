@@ -175,8 +175,32 @@ export default function ChatSessionPage() {
 
   const isActive = (id: string) => id === sessionId;
 
+  const getDomain = (url: string) => {
+    try {
+      const u = new URL(url);
+      return u.hostname.replace('www.', '');
+    } catch {
+      return '';
+    }
+  };
+
+  const summarizeText = (text: string, maxLen: number = 280) => {
+    if (!text) return '';
+    const cleaned = text.replace(/\s+/g, ' ').trim();
+    if (cleaned.length <= maxLen) return cleaned;
+    // Try sentence-aware truncation
+    const sentences = cleaned.split(/(?<=[.!?])\s+/);
+    let out = '';
+    for (const s of sentences) {
+      if ((out + ' ' + s).trim().length > maxLen) break;
+      out = (out ? out + ' ' : '') + s;
+    }
+    if (!out) out = cleaned.slice(0, maxLen);
+    return out.replace(/[,:;\-\s]+$/, '') + '…';
+  };
+
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="max-h-screen bg-gray-900">
       <header className="bg-gray-800 shadow-sm border-b border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -186,15 +210,15 @@ export default function ChatSessionPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-4rem)] overflow-hidden min-h-0">
         {/* Sidebar */}
-        <aside className="lg:col-span-1">
-          <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700">
-            <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
+        <aside className="lg:col-span-1 h-full min-h-0">
+          <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 h-full flex flex-col min-h-0">
+            <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between shrink-0">
               <h2 className="text-lg font-semibold text-white">Your Sessions</h2>
               <Link href="/chat" className="text-xs text-indigo-400 hover:text-indigo-300">+ New</Link>
             </div>
-            <div className="max-h-[70vh] overflow-y-auto divide-y divide-gray-700">
+            <div className="flex-1 overflow-y-auto divide-y divide-gray-700 min-h-0">
               {sessions.length === 0 ? (
                 <div className="p-4 text-sm text-gray-400">No sessions yet</div>
               ) : (
@@ -218,20 +242,20 @@ export default function ChatSessionPage() {
         </aside>
 
         {/* Main Content */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 h-full min-h-0">
           {loading ? (
-            <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-8 text-center">
+            <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-8 text-center h-full flex items-center justify-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto"></div>
-              <p className="mt-4 text-gray-400">Loading research session...</p>
+              <p className="mt-4 text-gray-400 ml-4">Loading research session...</p>
             </div>
           ) : error ? (
-            <div className="bg-red-900/20 border border-red-800 text-red-400 px-4 py-3 rounded-lg">
+            <div className="bg-red-900/20 border border-red-800 text-red-400 px-4 py-3 rounded-lg h-full">
               {error}
             </div>
           ) : (
-            <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700">
+            <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 h-full flex flex-col min-h-0">
               {/* Header */}
-              <div className="px-6 py-4 border-b border-gray-700">
+              <div className="px-6 py-4 border-b border-gray-700 shrink-0">
                 <div className="flex items-center justify-between">
                   <div>
                     <h1 className="text-xl font-semibold text-white">{currentSession?.query}</h1>
@@ -258,7 +282,7 @@ export default function ChatSessionPage() {
               </div>
 
               {/* Tabs */}
-              <div className="border-b border-gray-700">
+              <div className="border-b border-gray-700 shrink-0">
                 <nav className="flex space-x-8 px-6">
                   {[
                     { id: 'results', label: 'Results' },
@@ -281,7 +305,7 @@ export default function ChatSessionPage() {
               </div>
 
               {/* Tab Content */}
-              <div className="p-6">
+              <div className="p-6 flex-1 overflow-y-auto min-h-0">
                 {activeTab === 'results' && (
                   <div>
                     {result?.report ? (
@@ -320,15 +344,57 @@ export default function ChatSessionPage() {
 
                 {activeTab === 'sources' && (
                   <div className="space-y-4">
-                    {sources.map((source, index) => (
-                      <div key={index} className="border border-gray-700 rounded-lg p-4">
-                        <h3 className="font-medium text-white mb-2">{source.title}</h3>
-                        <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 text-sm mb-2 block">
-                          {source.url}
-                        </a>
-                        <p className="text-gray-400 text-sm">{source.content}</p>
-                      </div>
-                    ))}
+                    {sources.map((source, index) => {
+                      const domain = getDomain(source.url);
+                      const summary = (source as any).summary || summarizeText(source.content || '');
+                      return (
+                        <div key={index} className="rounded-lg border border-gray-700 bg-gray-800/60 hover:bg-gray-800 transition-colors">
+                          <div className="p-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="min-w-0">
+                                <a href={source.url} target="_blank" rel="noopener noreferrer" className="block">
+                                  <h3 className="text-white font-semibold truncate hover:text-indigo-300 transition-colors">
+                                    {source.title || domain || 'Untitled Source'}
+                                  </h3>
+                                </a>
+                                <div className="mt-1 flex items-center gap-2 text-xs text-gray-400">
+                                  {domain && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-700 text-gray-300">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                                      {domain}
+                                    </span>
+                                  )}
+                                  {typeof source.relevance_score === 'number' && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-900/30 text-indigo-300">
+                                      Relevance: {Math.round(source.relevance_score * 100)}%
+                                    </span>
+                                  )}
+                                  {source.source_type && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-700 text-gray-300 capitalize">
+                                      {source.source_type}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <a
+                                href={source.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="shrink-0 text-xs text-indigo-400 hover:text-indigo-300"
+                              >
+                                Open ↗
+                              </a>
+                            </div>
+
+                            {summary && (
+                              <p className="mt-3 text-sm text-gray-300 leading-relaxed">
+                                {summary}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
