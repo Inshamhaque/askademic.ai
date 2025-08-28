@@ -71,7 +71,7 @@ export default function ChatSessionPage() {
 
   const loadSessions = useCallback(async () => {
     try {
-      const res = await fetch(`http://localhost:8080/research/sessions`, { headers: getAuthHeaders() });
+      const res = await fetch(`https://askademic-ai.onrender.com/research/sessions`, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         setSessions(data.sessions || []);
@@ -94,10 +94,10 @@ export default function ChatSessionPage() {
       setError("");
 
       const [statusRes, reportRes, sourcesRes, logsRes] = await Promise.all([
-        fetch(`http://localhost:8080/research/status/${sessionId}`, { headers: getAuthHeaders() }),
-        fetch(`http://localhost:8080/research/report/${sessionId}`, { headers: getAuthHeaders() }),
-        fetch(`http://localhost:8080/research/sources/${sessionId}`, { headers: getAuthHeaders() }),
-        fetch(`http://localhost:8080/research/logs/${sessionId}`, { headers: getAuthHeaders() }),
+        fetch(`https://askademic-ai.onrender.com/research/status/${sessionId}`, { headers: getAuthHeaders() }),
+        fetch(`https://askademic-ai.onrender.com/research/report/${sessionId}`, { headers: getAuthHeaders() }),
+        fetch(`https://askademic-ai.onrender.com/research/sources/${sessionId}`, { headers: getAuthHeaders() }),
+        fetch(`https://askademic-ai.onrender.com/research/logs/${sessionId}`, { headers: getAuthHeaders() }),
       ]);
 
       if (statusRes.ok) {
@@ -155,7 +155,7 @@ export default function ChatSessionPage() {
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`http://localhost:8080/research/status/${sessionId}`, { headers: getAuthHeaders() });
+        const res = await fetch(`https://askademic-ai.onrender.com/research/status/${sessionId}`, { headers: getAuthHeaders() });
         if (res.ok) {
           const s = await res.json();
           setStatus(s.status || "unknown");
@@ -365,7 +365,7 @@ export default function ChatSessionPage() {
                             try {
                               const arrayBuffer = await file.arrayBuffer();
                               const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-                              await fetch(`http://localhost:8080/research/upload/${sessionId}`, {
+                              await fetch(`https://askademic-ai.onrender.com/research/upload/${sessionId}`, {
                                 method: 'POST',
                                 headers: getAuthHeaders(),
                                 body: JSON.stringify({ filename: file.name, contentBase64: base64 })

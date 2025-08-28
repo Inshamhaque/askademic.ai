@@ -266,7 +266,7 @@ export default function PdfDownload({
 
       // Save PDF
       const pdfBytes = await pdfDoc.save();
-      const blob = new Blob([pdfBytes as Uint8Array], { type: 'application/pdf' });
+      const blob = new Blob([pdfBytes as unknown as BlobPart], { type: 'application/pdf' });
       const cleanQuery = cleanTextForPdf(query.slice(0, 30)).replace(/[^a-zA-Z0-9]/g, '-');
       const filename = `research-report-${cleanQuery}-${Date.now()}.pdf`;
       const link = document.createElement('a');

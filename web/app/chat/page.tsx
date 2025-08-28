@@ -45,7 +45,7 @@ export default function ChatStarterPage() {
   const loadSessions = useCallback(async () => {
     try {
       setLoadingSessions(true);
-      const res = await fetch('http://localhost:8080/research/sessions', { 
+      const res = await fetch('https://askademic-ai.onrender.com/research/sessions', { 
         headers: getAuthHeaders() 
       });
       if (res.ok) {
@@ -108,7 +108,7 @@ export default function ChatStarterPage() {
     }
 
     try {
-      const response = await fetch('http://localhost:8080/research/initiate', {
+      const response = await fetch('https://askademic-ai.onrender.com/research/initiate', {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ query: query.trim(), depth })

@@ -20,7 +20,7 @@ export default function SignInPage() {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:8080/user/signin', {
+      const response = await fetch('https://askademic-ai.onrender.com/user/signin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

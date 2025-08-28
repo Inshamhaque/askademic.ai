@@ -32,7 +32,7 @@ export default function ProfileDropdown({ user }: ProfileDropdownProps) {
   const handleSignOut = async () => {
     try {
       const sessionToken = localStorage.getItem('sessionToken');
-      await fetch('http://localhost:8080/user/signout', {
+              await fetch('https://askademic-ai.onrender.com/user/signout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
