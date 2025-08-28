@@ -106,7 +106,7 @@ export default function HomePage() {
       </section>
 
       {/* Demo Video Section */}
-      <section id="demo" className="px-8 py-20 bg-gray-900 text-center">
+      {/* <section id="demo" className="px-8 py-20 bg-gray-900 text-center">
         <h2 className="text-3xl font-bold">See It in Action</h2>
         <p className="mt-4 text-gray-400 max-w-2xl mx-auto">
           Watch how ResearchCopilot helps researchers accelerate their workflow with intelligent source fetching, deep analysis, and seamless integration.
@@ -128,7 +128,7 @@ export default function HomePage() {
             ></iframe>
           </div>
         </motion.div>
-      </section>
+      </section> */}
 
       {/* Footer */}
       <footer id="contact" className="py-8 border-t border-gray-800 text-center text-gray-500">
