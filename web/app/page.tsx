@@ -4,35 +4,40 @@ import { motion } from "framer-motion";
 import Logo from "./components/Logo";
 import { useRouter } from "next/navigation";
 
-
 export default function HomePage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const router = useRouter();
-  useEffect(()=>{
+  useEffect(() => {
     const token = localStorage.getItem("user");
-    if(token){
+    if (token) {
       setIsLoggedIn(true);
     }
-  },[])
+  }, []);
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white flex flex-col">
       {/* Navbar */}
       <nav className="w-full flex justify-between items-center px-8 py-4 border-b border-gray-800">
         <Logo />
-        <div className="flex gap-6">
-          <a href="#features" className="hover:text-indigo-400">Features</a>
-          {/* <a href="#pricing" className="hover:text-indigo-400">Pricing</a> */}
-          <a href="#contact" className="hover:text-indigo-400">Contact</a>
-        </div>
-        {isLoggedIn?<button onClick={()=>{
-          router.push("/chat");
-        }} className="bg-indigo-600 hover:bg-indigo-500 px-5 py-2 rounded-lg font-medium transition">
-          Go to Chat
-        </button>:<button onClick={()=>{
-          router.push("/signup");
-        }} className="bg-indigo-600 hover:bg-indigo-500 hover:cursor-pointer  px-5 py-2 rounded-lg font-medium transition">
-          Get Started
-        </button>}
+        <div className="flex gap-6"></div>
+        {isLoggedIn ? (
+          <button
+            onClick={() => {
+              router.push("/chat");
+            }}
+            className="bg-indigo-600 hover:bg-indigo-500 px-5 py-2 rounded-lg font-medium transition"
+          >
+            Go to Chat
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              router.push("/signup");
+            }}
+            className="bg-indigo-600 hover:bg-indigo-500 hover:cursor-pointer  px-5 py-2 rounded-lg font-medium transition"
+          >
+            Get Started
+          </button>
+        )}
       </nav>
 
       {/* Hero Section */}
@@ -100,36 +105,30 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Pricing Section
-      <section id="pricing" className="px-8 py-20 bg-gray-900">
-        <h2 className="text-3xl font-bold text-center">Simple Pricing</h2>
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-          {[
-            { plan: "Free", price: "$0", features: ["5 queries/day", "Basic summaries"] },
-            { plan: "Pro", price: "$19/mo", features: ["Unlimited queries", "Advanced analysis", "Priority support"] },
-            { plan: "Enterprise", price: "Custom", features: ["Team features", "Custom integrations", "Dedicated support"] },
-          ].map((p, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.2 }}
-              className="p-8 bg-gray-950 rounded-2xl border border-gray-800 shadow-lg flex flex-col items-center"
-            >
-              <h3 className="text-xl font-semibold">{p.plan}</h3>
-              <p className="text-3xl font-bold mt-2 text-indigo-500">{p.price}</p>
-              <ul className="mt-6 space-y-2 text-gray-400">
-                {p.features.map((f, j) => (
-                  <li key={j}>✓ {f}</li>
-                ))}
-              </ul>
-              <button className="mt-8 bg-indigo-600 hover:bg-indigo-500 px-5 py-2 rounded-lg font-medium transition">
-                Choose {p.plan}
-              </button>
-            </motion.div>
-          ))}
-        </div>
-      </section> */}
+      {/* Demo Video Section */}
+      <section id="demo" className="px-8 py-20 bg-gray-900 text-center">
+        <h2 className="text-3xl font-bold">See It in Action</h2>
+        <p className="mt-4 text-gray-400 max-w-2xl mx-auto">
+          Watch how ResearchCopilot helps researchers accelerate their workflow with intelligent source fetching, deep analysis, and seamless integration.
+        </p>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6 }}
+          className="mt-10 max-w-4xl mx-auto rounded-2xl overflow-hidden shadow-lg border border-gray-800"
+        >
+          <div className="aspect-video">
+            <iframe
+              className="w-full h-full"
+              src="https://www.youtube.com/embed/dQw4w9WgXcQ" // replace with your actual demo video link
+              title="ResearchCopilot Demo Video"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            ></iframe>
+          </div>
+        </motion.div>
+      </section>
 
       {/* Footer */}
       <footer id="contact" className="py-8 border-t border-gray-800 text-center text-gray-500">

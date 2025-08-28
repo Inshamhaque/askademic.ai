@@ -536,6 +536,44 @@ class ResearchAgent {
     };
   }
 
+  /**
+   * Answer a follow-up question using RAG (sources + report)
+   */
+  async answerFollowUp(question: string, sources: any[], report: string): Promise<string> {
+    // Compose context from sources and report
+    const context = [
+      '--- SOURCES ---',
+      ...sources.map((s: any, i: number) => `Source ${i+1}: ${s.title}\nURL: ${s.url}\nContent: ${s.content?.slice(0, 800)}`),
+      '--- REPORT ---',
+      report,
+      '--- END CONTEXT ---'
+    ].join('\n\n');
+    const prompt = `You are an expert research assistant. Using ONLY the information in the provided sources and report, answer the following follow-up question as thoroughly and accurately as possible. If the answer is not present, say so.
+
+CONTEXT:
+${context}
+
+FOLLOW-UP QUESTION:
+${question}
+
+ANSWER:`;
+    const result = await this.llm.invoke(prompt);
+    let answer = '';
+    if (typeof result === 'string') {
+      answer = result;// TODO : trim here
+    } else if (typeof result?.content === 'string') {
+      answer = result.content.trim();
+    } else if (typeof result?.text === 'string') {
+      answer = result.text.trim();
+    } else if (Array.isArray(result?.content)) {
+      const arr: any[] = result.content;
+      answer = arr.map((c) => typeof c === 'string' ? c.trim() : JSON.stringify(c)).join('\n').trim();
+    } else {
+      answer = JSON.stringify(result).slice(0, 1000);
+    }
+    return answer;
+  }
+
   // Helper methods
 
   private async generateSearchQueries(originalQuery: string): Promise<string[]> {

@@ -383,3 +383,25 @@ export const addFeedback = async (sessionId: string, feedback: string, refinemen
     throw new Error(`Failed to add feedback: ${error.message}`);
   }
 };
+
+export const followUpResearch = async (sessionId: string, question: string, userId: string) => {
+  try {
+    const agentRun = await prisma.agentRun.findFirst({
+      where: {
+        sessionId: sessionId,
+        session: { userId: userId }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    if (!agentRun) throw new Error('Research session not found');
+    const output = agentRun.output as any;
+    const sources = output.sources || [];
+    const report = output.report || '';
+    // Use the agent to answer the follow-up using RAG
+    const answer = await researchAgent.answerFollowUp(question, sources, report);
+    return answer;
+  } catch (error: any) {
+    console.error('Error in followUpResearch:', error);
+    throw new Error(`Failed to answer follow-up: ${error.message}`);
+  }
+};

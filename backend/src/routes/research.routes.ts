@@ -23,5 +23,6 @@ router.get("/report/:sessionId", researchController.getReport);
 
 // Feedback and refinement
 router.post("/feedback", researchController.addFeedback);
+router.post("/followup", researchController.followUpResearch);
 
 export default router;

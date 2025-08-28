@@ -160,3 +160,17 @@ export const addFeedback = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const followUpResearch = async (req: Request, res: Response) => {
+  try {
+    const { sessionId, question } = req.body;
+    const userId = req.userId;
+    if (!userId) return res.status(401).json({ error: "User not authenticated" });
+    if (!sessionId || !question) return res.status(400).json({ error: "Session ID and question are required" });
+    const answer = await researchService.followUpResearch(sessionId, question, userId);
+    res.json({ answer });
+  } catch (error: any) {
+    console.error("Error in followUpResearch:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
