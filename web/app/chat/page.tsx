@@ -32,25 +32,7 @@ export default function ChatStarterPage() {
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
 
-  useEffect(() => {
-    const token = localStorage.getItem('sessionToken');
-    const userData = localStorage.getItem('user');
-    
-    if (!token) {
-      router.push('/signin');
-      return;
-    }
 
-    if (userData) {
-      try {
-        setUser(JSON.parse(userData));
-      } catch (err) {
-        console.error('Error parsing user data:', err);
-      }
-    }
-
-    loadSessions();
-  }, [router]);
 
   const getAuthHeaders = () => {
     const sessionToken = localStorage.getItem('sessionToken');
@@ -80,6 +62,26 @@ export default function ChatStarterPage() {
       setLoadingSessions(false);
     }
   }, [router]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('sessionToken');
+    const userData = localStorage.getItem('user');
+    
+    if (!token) {
+      router.push('/signin');
+      return;
+    }
+
+    if (userData) {
+      try {
+        setUser(JSON.parse(userData));
+      } catch (err) {
+        console.error('Error parsing user data:', err);
+      }
+    }
+
+    loadSessions();
+  }, [router, loadSessions]);
 
   const startResearch = async () => {
     if (!query.trim()) {

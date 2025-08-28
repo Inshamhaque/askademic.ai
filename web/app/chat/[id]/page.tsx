@@ -41,11 +41,7 @@ interface User {
   email: string;
 }
 
-// Add state for follow-ups
-interface FollowUp {
-  question: string;
-  answer: string;
-}
+
 
 export default function ChatSessionPage() {
   const router = useRouter();
@@ -149,7 +145,7 @@ export default function ChatSessionPage() {
     }
 
     loadSessions();
-  }, [router, sessionId]);
+  }, [router, loadSessions]);
 
   useEffect(() => {
     if (!sessionId) return;
